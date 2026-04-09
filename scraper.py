@@ -18,7 +18,7 @@ load_dotenv()
 
 def setup_driver():
   options = webdriver.ChromeOptions()
-  options.add_argument("--headless=new")
+  # options.add_argument("--headless=new")
   options.add_argument("--disable-gpu")
   options.add_argument("--no-sandbox")
   options.add_argument("--disable-dev-shm-usage")
@@ -27,41 +27,66 @@ def setup_driver():
   driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
   return driver
 
-def login_with_google(driver, email, password):
+def login_with_email(driver, email, password):
   driver.get("https://altfins.com/login")
 
   try:
-    google_button = WebDriverWait(driver, 10).until(
-      EC.presence_of_element_located((By.TAG_NAME, "google-sso-button"))
-    )
-    google_button.click()
+    # Under headless mode or cold states, altfins might start on REGISTRATION_TAB
+    # Make sure we click the login tab first via JS to bypass any interceptors
+    try:
+      # Switch to Login form by clicking the "Sign in" link as suggested
+      sign_in_link = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.XPATH, "//vaadin-horizontal-layout[contains(@class, 'link-to-tab')]//span[contains(@class, 'link') and text()='Sign in']"))
+      )
+      driver.execute_script("arguments[0].click();", sign_in_link)
+      time.sleep(2)
+    except Exception as e:
+      print("⚠️ Could not click 'Sign in' link:", str(e))
+      pass
 
-    email_input = WebDriverWait(driver, 10).until(
-      EC.presence_of_element_located((By.CSS_SELECTOR, 'input[type="email"]'))
+    # Vaadin injects native input elements inside or uses Shadow DOM
+    email_input = WebDriverWait(driver, 15).until(
+      EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='username']"))
     )
+    
+    # Ensuring it's interactable
+    WebDriverWait(driver, 15).until(
+      EC.element_to_be_clickable((By.CSS_SELECTOR, "input[name='username']"))
+    )
+    
+    email_input.clear()
     email_input.send_keys(email)
-    email_input.send_keys(Keys.RETURN)
+    time.sleep(1)
 
-    time.sleep(5)
     pass_input = WebDriverWait(driver, 10).until(
-      EC.presence_of_element_located((By.CSS_SELECTOR, 'input[type="password"]'))
+      EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
     )
+    pass_input.clear()
     pass_input.send_keys(password)
+    
+    time.sleep(1)
     pass_input.send_keys(Keys.RETURN)
+    
+    # Wait for the URL to change indicating successful login (or fallback)
+    try:
+      WebDriverWait(driver, 10).until(EC.url_changes("https://altfins.com/login"))
+    except Exception:
+      time.sleep(3) # safe fallback
 
-    time.sleep(10)
     print("✅ Login successful!")
   except Exception as e:
     print("❌ Login error:", str(e))
 
 def load_website(driver, url):
   driver.get(url)
-  time.sleep(5)
-  print("✅ The website has finished loading.")
+  print("✅ The website has loaded natively, waiting for dynamic elements.")
 
 def extract_table_rows(driver, num_rows=2):
   try:
-    table = driver.find_element(By.CLASS_NAME, "nis-async-grid")
+    # Dynamically wait up to 15 seconds for the grid rather than hardcoded sleep
+    table = WebDriverWait(driver, 15).until(
+      EC.presence_of_element_located((By.CLASS_NAME, "nis-async-grid"))
+    )
     print("✅ Found the 'nis-async-grid' table.")
 
     cells = table.find_elements(By.TAG_NAME, "vaadin-grid-cell-content")
@@ -170,7 +195,7 @@ def main():
 
   try:
     print("📌 ================= Start =================\n")
-    login_with_google(driver, os.getenv("ALTFINS_ACCOUNT"), os.getenv("ALTFINS_PASSWORD"))
+    login_with_email(driver, os.getenv("ALTFINS_ACCOUNT"), os.getenv("ALTFINS_PASSWORD"))
 
     load_website(driver, "https://altfins.com/technical-analysis")
 
