@@ -28,9 +28,7 @@ def setup_driver():
   return driver
 
 def login_with_google(driver, email, password):
-  # Use hardcoded URL if env var is missing
-  login_url = os.getenv("ALTFINS_URL_LOGIN", "https://altfins.com/login")
-  driver.get(login_url)
+  driver.get("https://altfins.com/login")
 
   try:
     google_button = WebDriverWait(driver, 10).until(
@@ -174,9 +172,7 @@ def main():
     print("📌 ================= Start =================\n")
     login_with_google(driver, os.getenv("ALTFINS_ACCOUNT"), os.getenv("ALTFINS_PASSWORD"))
 
-    # Use hardcoded URL if env var is missing
-    analysis_url = os.getenv("ALTFINS_URL_ANALYSIS", "https://altfins.com/technical-analysis")
-    load_website(driver, analysis_url)
+    load_website(driver, "https://altfins.com/technical-analysis")
 
     table_rows = extract_table_rows(driver, num_rows=2)
 
