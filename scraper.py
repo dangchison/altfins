@@ -83,11 +83,19 @@ def load_website(driver, url):
 
 def extract_table_rows(driver, num_rows=2):
   try:
-    # Dynamically wait up to 15 seconds for the grid rather than hardcoded sleep
+    # Wait for the grid container
     table = WebDriverWait(driver, 15).until(
       EC.presence_of_element_located((By.CLASS_NAME, "nis-async-grid"))
     )
-    print("✅ Found the 'nis-async-grid' table.")
+    
+    # CHỜ TRIỆT ĐỂ: Đợi cho đến khi các cell bên trong table thực sự được bơm nội dung chữ
+    # Chú ý: Cột đầu tiên (index 0) thường chứa logo/icon (text rỗng), 
+    # nên ta kiểm tra sự sống từ cột số 3 (Coin name) để tránh bị Timeout kẹt cứng 15s.
+    WebDriverWait(driver, 15).until(
+      lambda d: len(d.find_element(By.CLASS_NAME, "nis-async-grid").find_elements(By.TAG_NAME, "vaadin-grid-cell-content")) > 3 and 
+                len(d.find_element(By.CLASS_NAME, "nis-async-grid").find_elements(By.TAG_NAME, "vaadin-grid-cell-content")[3].text.strip()) > 0
+    )
+    print("✅ Found the 'nis-async-grid' table and data has rendered.")
 
     cells = table.find_elements(By.TAG_NAME, "vaadin-grid-cell-content")
 
@@ -148,9 +156,17 @@ def click_inspect_button(driver, row_index):
 
 def extract_popup_data(driver):
   try:
+    # 1. Chờ khung popup bật lên
     popup = WebDriverWait(driver, 15).until(
       EC.visibility_of_element_located((By.CLASS_NAME, "curated-chart-detail"))
     )
+    
+    # 2. CHỜ TRIỆT ĐỂ: Theo dõi liên tục cho đến khi chữ bên trong khung ngập lên đủ dài
+    # (Một bài phân tích chuẩn chắc chắn dài hơn 50 ký tự)
+    WebDriverWait(driver, 15).until(
+      lambda d: len(d.find_element(By.CLASS_NAME, "curated-chart-detail").text.strip()) > 50
+    )
+    
     popup_text = popup.text.strip()
     print("✅ Successfully retrieved data from the popup.")
     return popup_text

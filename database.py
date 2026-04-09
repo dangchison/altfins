@@ -1,4 +1,4 @@
-from telegram import send_telegram_message, send_telegram_photo
+from telegram import send_telegram_message, send_telegram_photo, parse_trade_setup, format_detailed_message
 from supabase import create_client, Client
 import uuid
 from datetime import datetime
@@ -100,13 +100,26 @@ def save_data_to_supabase(data):
       data (list): Data to save
   """
   for item in data:
-    date = item["table_row"][1]
-    coin = item["table_row"][3]
-    symbol = item["table_row"][2]
-    contents = item["popup_data"]
-    image = item["popup_image"]
+    contents = item.get("popup_data", "")
+    image = item.get("popup_image", "")
+    row = item.get("table_row", [])
 
-    if not coin or not symbol or not image or coin == "Asset Name":
+    if len(row) >= 4:
+      date = row[1]
+      symbol = row[2]
+      coin = row[3]
+    else:
+      # Bảng chưa render kịp nên row bị rỗng []. Phải trích xuất thủ công từ nội dung popup bù vào.
+      import re
+      m = re.search(r'([A-Z0-9\.]+)\s*-\s*(.*?)\s*-\s*Trade setup:', contents, re.IGNORECASE)
+      if m:
+        symbol = m.group(1).strip()
+        coin = symbol
+        date = m.group(2).strip()
+      else:
+        symbol, coin, date = "N/A", "N/A", "N/A"
+
+    if not coin or not symbol or not image or coin == "Asset Name" or coin == "N/A":
       print(f"❌ Doesn't found: '{coin}'('{symbol}')")
       continue
 
@@ -122,6 +135,18 @@ def save_data_to_supabase(data):
     else:
       _create_crypto_entry(date, coin, symbol, contents, image)
       print(f"✅ New data for {coin}({symbol}) has been added on {date}.")
-      print(f"✅ Send the messages.")
-      send_telegram_photo(image, caption=f"📊 Chart for {coin} ({symbol}) - {date}")
-      send_telegram_message(f"🔬 {symbol} - {date} - {contents}")
+      
+    print(f"✅ Send the messages.")
+
+    # Lọc dữ liệu thô
+    parsed_data = parse_trade_setup(contents, coin_symbol=symbol, date_str=date)
+    message_text = format_detailed_message(parsed_data)
+    
+    # Gửi ảnh biểu đồ (caption cơ bản)
+    send_telegram_photo(image, caption=f"📊 Chart for {coin} ({symbol}) - {date}")
+
+    # Gửi thông tin gốc (tắt HTML parse_mode vì chữ thô có thể chứa dấu < > gây lỗi API)
+    send_telegram_message(f"🔬 {symbol} - {date} - {contents}", parse_mode=None)
+    
+    # Gửi thông tin Trade Setup chi tiết (Template 1)
+    send_telegram_message(message_text)
