@@ -26,12 +26,12 @@ def parse_trade_setup(raw_text, coin_symbol="N/A", date_str="N/A"):
     if not raw_text:
         return data
 
-    # 1. Setup (Bỏ qua việc tìm Coin và Date nếu không cần thiết)
+    # 1. Setup — coin/date are injected directly from the table, no need to parse them here
     match = re.search(r'Trade setup:\s*(.*?)(?=\nPattern:|$)', raw_text, re.IGNORECASE | re.DOTALL)
     if match:
         setup_text = match.group(1).strip()
         
-        # Remove educational / ad phrases
+        # Remove educational and advertising phrases injected by Altfins
         setup_text = re.sub(r'\(Set a price alert\)\.?', '', setup_text, flags=re.IGNORECASE).strip()
         setup_text = re.sub(r'Learn to trade.*?\.', '', setup_text, flags=re.IGNORECASE).strip()
         setup_text = re.sub(r'We also issued.*?\.', '', setup_text, flags=re.IGNORECASE).strip()
@@ -40,7 +40,7 @@ def parse_trade_setup(raw_text, coin_symbol="N/A", date_str="N/A"):
         setup_text = re.sub(r'USDe has a market capitalization.*?USDT\.', '', setup_text, flags=re.IGNORECASE | re.DOTALL).strip()
         data["setup"] = setup_text.strip()
         
-    # 2. Pattern
+    # 2. Pattern — extract only the pattern name from the first sentence
     pattern_match = re.search(r'Pattern:\s*(.*?)(?=\nTrend:|$)', raw_text, re.IGNORECASE | re.DOTALL)
     if pattern_match:
         pattern_text = pattern_match.group(1).strip()
@@ -50,39 +50,39 @@ def parse_trade_setup(raw_text, coin_symbol="N/A", date_str="N/A"):
         p_name = re.sub(r'(?i)pattern', '', p_name).strip()
         data["pattern"] = p_name.strip()
         
-    # 3. Trend
+    # 3. Trend — extract short, medium and long-term directions
     trend_match = re.search(r'Trend:\s*Short-term trend is\s*(.*?), Medium-term trend is\s*(.*?), Long-term trend is\s*(.*?)\.', raw_text, re.IGNORECASE)
     if trend_match:
         data["s_trend"] = trend_match.group(1).strip()
         data["m_trend"] = trend_match.group(2).strip()
         data["l_trend"] = trend_match.group(3).strip()
 
-    # 4. Momentum & RSI
+    # 4. Momentum & RSI — split into two separate fields
     data["rsi"] = "N/A"
     m_match = re.search(r'Momentum(?: is|:)?\s*(.*?)(?=\nSupport and Resistance:|$)', raw_text, re.IGNORECASE | re.DOTALL)
     if m_match:
         mom_full = m_match.group(1).strip()
-        # Tìm câu chứa 'RSI'
+        # Find the sentence that contains the RSI reading
         rsi_match = re.search(r'([^.]*RSI.*?(?:\.|\)|$))', mom_full, re.IGNORECASE)
         if rsi_match:
             rsi_text = rsi_match.group(1).strip()
-            # Chỉ lấy phần ngưỡng số trong ngoặc: (RSI > 30 and RSI < 70)
+            # Keep only the numeric threshold range in parentheses: (RSI > 30 and RSI < 70)
             rsi_range = re.search(r'\([^)]*RSI[^)]*\)', rsi_text, re.IGNORECASE)
             data["rsi"] = rsi_range.group(0).strip() if rsi_range else rsi_text
             
-            # Loại bỏ câu RSI để lấy thông tin Momentum gốc (Bao gồm cả MACD)
+            # Remove the RSI sentence to isolate the MACD/Momentum assertion
             pure_mom = mom_full.replace(rsi_match.group(0), '').strip()
             
-            # Lọc sạch khoảng trắng dư thừa và dấu phẩy/chấm kẹt lại
+            # Strip leftover punctuation characters
             pure_mom = pure_mom.strip(' ._,;-')
-            # Chỉ giữ câu đầu tiên (nhận định tổng quát) - không bịa thêm từ nào
+            # Keep only the first sentence — the high-level summary; do not fabricate words
             first_sentence = pure_mom.split('.')[0].strip() if pure_mom else ""
-            # Nếu Altfins không cung cấp nhận định MACD -> để N/A, không tự suy diễn
+            # If Altfins provides no MACD assertion, mark as N/A rather than guessing
             data["momentum"] = first_sentence.capitalize() if first_sentence else "N/A"
         else:
             data["momentum"] = mom_full.strip(' ._,;-').capitalize()
 
-    # 5. Support and Resistance (Khắc phục lỗi ngừng ở dấu chấm thập phân)
+    # 5. Support and Resistance — use newline as stop anchor to avoid breaking on decimal dots
     sr_match = re.search(r'Support and Resistance:\s*Nearest Support Zone is\s*(.*?)\.\s*Nearest Resistance Zone is\s*(.*?)(?:\n|$)', raw_text, re.IGNORECASE | re.DOTALL)
     if sr_match:
         data["support"] = sr_match.group(1).strip()
@@ -96,24 +96,24 @@ def parse_trade_setup(raw_text, coin_symbol="N/A", date_str="N/A"):
     return data
 
 def momentum_icon(momentum_text):
-    """Map keyword từ data gốc Altfins -> icon tín hiệu. Không bịa thêm chữ nào."""
+    """Map Altfins momentum keywords to a signal icon. No words are fabricated."""
     t = momentum_text.lower()
     if "strongly bullish" in t:
-        return "✅"  # Xu hướng mạnh, an toàn giữ lệnh
+        return "✅"  # Strong trend — safe to hold position
     if "bullish" in t and "inflect" in t:
-        return "⚠️"  # Cảnh giác đảo chiều
+        return "⚠️"  # Caution — momentum may be reversing
     if "bullish" in t:
-        return "📈"  # Bullish tốt
+        return "📈"  # Bullish
     if "strongly bearish" in t:
-        return "🔴"  # Xu hướng giảm mạnh
+        return "🔴"  # Strong downtrend
     if "bearish" in t and "inflect" in t:
-        return "👀"  # Theo dõi đảo chiều tăng
+        return "👀"  # Watch for potential bullish reversal
     if "bearish" in t:
         return "📉"  # Bearish
-    return ""  # Không có dữ liệu rõ ràng -> không gán icon
+    return ""  # No clear signal — do not assign an icon
 
 def trend_icon(trend_text):
-    """Map giá trị trend từ Altfins -> icon màu sắc."""
+    """Map Altfins trend values to a colored directional icon."""
     t = trend_text.lower().strip()
     if "strong up" in t:   return "🟢⬆️"
     if "up" in t:          return "🟢↗️"
@@ -123,7 +123,7 @@ def trend_icon(trend_text):
 
 # Template 1: Detailed Single Coin Message
 def format_detailed_message(parsed_data):
-    # Escape dữ liệu thô để Telegram HTML parse_mode không bị sụp nguồn vì ký hiệu < > (vd RSI < 70)
+    # Escape raw data so Telegram HTML parse_mode does not break on < > characters (e.g. RSI < 70)
     e = {k: html.escape(str(v)) for k, v in parsed_data.items()}
     return f"""🚀 <b>#{e['coin']}</b> Trade Setup | <i>{e['date']}</i>
 

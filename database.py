@@ -109,7 +109,8 @@ def save_data_to_supabase(data):
       symbol = row[2]
       coin = row[3]
     else:
-      # Bảng chưa render kịp nên row bị rỗng []. Phải trích xuất thủ công từ nội dung popup bù vào.
+      # Table row is empty — grid likely did not finish rendering when the popup was opened.
+      # Fall back to extracting symbol and date directly from the popup text.
       import re
       m = re.search(r'([A-Z0-9\.]+)\s*-\s*(.*?)\s*-\s*Trade setup:', contents, re.IGNORECASE)
       if m:
@@ -136,17 +137,16 @@ def save_data_to_supabase(data):
       _create_crypto_entry(date, coin, symbol, contents, image)
       print(f"✅ New data for {coin}({symbol}) has been added on {date}.")
       
-    print(f"✅ Send the messages.")
+      print(f"✅ Send the messages.")
+      # Parse raw popup text into structured fields
+      parsed_data = parse_trade_setup(contents, coin_symbol=symbol, date_str=date)
+      message_text = format_detailed_message(parsed_data)
+      
+      # Send chart image with a basic caption
+      send_telegram_photo(image, caption=f"📊 Chart for {coin} ({symbol}) - {date}")
 
-    # Lọc dữ liệu thô
-    parsed_data = parse_trade_setup(contents, coin_symbol=symbol, date_str=date)
-    message_text = format_detailed_message(parsed_data)
-    
-    # Gửi ảnh biểu đồ (caption cơ bản)
-    send_telegram_photo(image, caption=f"📊 Chart for {coin} ({symbol}) - {date}")
-
-    # Gửi thông tin gốc (tắt HTML parse_mode vì chữ thô có thể chứa dấu < > gây lỗi API)
-    send_telegram_message(f"🔬 {symbol} - {date} - {contents}", parse_mode=None)
-    
-    # Gửi thông tin Trade Setup chi tiết (Template 1)
-    send_telegram_message(message_text)
+      # Send raw popup text with parse_mode disabled — raw text may contain < > which breaks HTML mode
+      send_telegram_message(f"🔬 {symbol} - {date} - {contents}", parse_mode=None)
+      
+      # Send the formatted Template 1 trade setup message
+      send_telegram_message(message_text)

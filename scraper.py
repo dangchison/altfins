@@ -88,9 +88,9 @@ def extract_table_rows(driver, num_rows=2):
       EC.presence_of_element_located((By.CLASS_NAME, "nis-async-grid"))
     )
     
-    # CHỜ TRIỆT ĐỂ: Đợi cho đến khi các cell bên trong table thực sự được bơm nội dung chữ
-    # Chú ý: Cột đầu tiên (index 0) thường chứa logo/icon (text rỗng), 
-    # nên ta kiểm tra sự sống từ cột số 3 (Coin name) để tránh bị Timeout kẹt cứng 15s.
+    # STRICT WAIT: Hold until cell content is actually populated inside the grid.
+    # Note: Column 0 is usually a logo/icon with no text, so we check column 3 (Coin name)
+    # to avoid a permanent 15s timeout waiting on an always-empty cell.
     WebDriverWait(driver, 15).until(
       lambda d: len(d.find_element(By.CLASS_NAME, "nis-async-grid").find_elements(By.TAG_NAME, "vaadin-grid-cell-content")) > 3 and 
                 len(d.find_element(By.CLASS_NAME, "nis-async-grid").find_elements(By.TAG_NAME, "vaadin-grid-cell-content")[3].text.strip()) > 0
@@ -156,13 +156,13 @@ def click_inspect_button(driver, row_index):
 
 def extract_popup_data(driver):
   try:
-    # 1. Chờ khung popup bật lên
+    # 1. Wait for the popup container to appear
     popup = WebDriverWait(driver, 15).until(
       EC.visibility_of_element_located((By.CLASS_NAME, "curated-chart-detail"))
     )
     
-    # 2. CHỜ TRIỆT ĐỂ: Theo dõi liên tục cho đến khi chữ bên trong khung ngập lên đủ dài
-    # (Một bài phân tích chuẩn chắc chắn dài hơn 50 ký tự)
+    # 2. STRICT WAIT: Poll until the popup text is long enough to be a real analysis
+    # (a proper trade setup is always longer than 50 characters)
     WebDriverWait(driver, 15).until(
       lambda d: len(d.find_element(By.CLASS_NAME, "curated-chart-detail").text.strip()) > 50
     )
