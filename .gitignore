@@ -1,0 +1,14 @@
+.vscode
+.idea
+node_modules
+dist
+build
+coverage
+
+__pycache__
+
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
