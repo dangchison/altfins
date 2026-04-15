@@ -87,21 +87,33 @@ def extract_table_rows(driver, num_rows=2):
     table = WebDriverWait(driver, 15).until(
       EC.presence_of_element_located((By.CLASS_NAME, "nis-async-grid"))
     )
-    
-    # STRICT WAIT: Hold until cell content is actually populated inside the grid.
-    # Note: Column 0 is usually a logo/icon with no text, so we check column 3 (Coin name)
-    # to avoid a permanent 15s timeout waiting on an always-empty cell.
-    WebDriverWait(driver, 15).until(
-      lambda d: len(d.find_element(By.CLASS_NAME, "nis-async-grid").find_elements(By.TAG_NAME, "vaadin-grid-cell-content")) > 3 and 
-                len(d.find_element(By.CLASS_NAME, "nis-async-grid").find_elements(By.TAG_NAME, "vaadin-grid-cell-content")[3].text.strip()) > 0
-    )
+
+    num_columns = 9
+
+    # STRICT WAIT: Hold until ALL requested rows have their coin-name cell (column 3)
+    # populated. Column 3 of row i lives at cell index (i * num_columns + 3).
+    # Wrap in try/except so StaleElementReferenceException returns False instead of
+    # propagating — WebDriverWait only ignores NoSuchElementException by default.
+    def all_rows_ready(d):
+      try:
+        cells = d.find_element(By.CLASS_NAME, "nis-async-grid") \
+                 .find_elements(By.TAG_NAME, "vaadin-grid-cell-content")
+        if len(cells) < num_rows * num_columns:
+          return False
+        for i in range(num_rows):
+          text = cells[i * num_columns + 3].text.strip()
+          if not text or text == "Asset Name":
+            return False
+        return True
+      except Exception:
+        return False
+
+    WebDriverWait(driver, 30).until(all_rows_ready)
     print("✅ Found the 'nis-async-grid' table and data has rendered.")
 
     cells = table.find_elements(By.TAG_NAME, "vaadin-grid-cell-content")
 
-    num_columns = 9
     rows = []
-
     for i in range(num_rows):
       start_index = i * num_columns
       row_data = [cell.text.strip() for cell in cells[start_index : start_index + num_columns - 1]]
@@ -215,7 +227,10 @@ def main():
 
     load_website(driver, "https://altfins.com/technical-analysis")
 
-    table_rows = extract_table_rows(driver, num_rows=2)
+    # Read ALL rows once — the grid is stable here (no popup open).
+    # all_rows_ready() guarantees both rows are fully populated before we snapshot.
+    num_rows = 2
+    table_rows = extract_table_rows(driver, num_rows=num_rows)
 
     results = []
 

@@ -104,23 +104,18 @@ def save_data_to_supabase(data):
     image = item.get("popup_image", "")
     row = item.get("table_row", [])
 
-    if len(row) >= 4:
-      date = row[1]
-      symbol = row[2]
-      coin = row[3]
-    else:
-      # Table row is empty — grid likely did not finish rendering when the popup was opened.
-      # Fall back to extracting symbol and date directly from the popup text.
-      import re
-      m = re.search(r'([A-Z0-9\.]+)\s*-\s*(.*?)\s*-\s*Trade setup:', contents, re.IGNORECASE)
-      if m:
-        symbol = m.group(1).strip()
-        coin = symbol
-        date = m.group(2).strip()
-      else:
-        symbol, coin, date = "N/A", "N/A", "N/A"
+    # Guard: scraper guarantees >= 4 cols, but skip silently if something goes wrong upstream.
+    if len(row) < 4 or not image:
+      print(f"⚠️ Skipping incomplete row: '{row}'")
+      continue
 
-    if not coin or not symbol or not image or coin == "Asset Name" or coin == "N/A":
+    date = row[1]
+    symbol = row[2]
+    coin = row[3]
+
+    print(f"✅ Checking Row: '{row}'")
+
+    if not coin or not symbol or coin == "Asset Name":
       print(f"❌ Doesn't found: '{coin}'('{symbol}')")
       continue
 
