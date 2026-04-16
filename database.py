@@ -1,7 +1,7 @@
 from telegram import send_telegram_message, send_telegram_photo, parse_trade_setup, format_detailed_message
 from supabase import create_client, Client
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import os
 from dotenv import load_dotenv
@@ -49,12 +49,10 @@ def _update_crypto_entry(entry_id, contents, image):
   Returns:
     bool: True if successful, False otherwise
   """
-  from datetime import datetime
-
   result = supabase.table("crypto_analysis").update({
     "contents": contents,
     "image": image,
-    "updated_at": datetime.now().isoformat()
+    "updated_at": datetime.now(timezone.utc).isoformat()
   }).eq("id", entry_id).execute()
 
   return len(result.data) > 0
@@ -74,9 +72,8 @@ def _create_crypto_entry(date, coin, symbol, contents, image):
     str: Id of the new entry if successful, None otherwise
   """
   import uuid
-  from datetime import datetime
 
-  current_time = datetime.now().isoformat()
+  current_time = datetime.now(timezone.utc).isoformat()
   new_id = str(uuid.uuid4())
 
   result = supabase.table("crypto_analysis").insert({
