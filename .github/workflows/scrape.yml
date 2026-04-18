@@ -6,6 +6,11 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch: # Allow manual triggering from GitHub UI
 
+# Prevent concurrent runs to avoid race conditions on DB inserts
+concurrency:
+  group: scrape-job
+  cancel-in-progress: true
+
 jobs:
   scrape-data:
     runs-on: ubuntu-latest
