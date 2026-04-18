@@ -56,6 +56,7 @@ class TelegramNotifier(BaseNotifier):
                     text=format_telegram_message(setup),
                     parse_mode="HTML",
                 )
+                log.info("📢 Alert sent successfully to chat %s", chat_id)
             except Exception as exc:
                 log.error("Failed to send alerts to chat %s: %s", chat_id, exc)
 

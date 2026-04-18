@@ -105,6 +105,7 @@ class ScrapePipeline:
 
     def _notify_all(self, setup) -> None:
         """Fan-out to every registered notifier. Errors are isolated per notifier."""
+        log.info("🔔 Delivering alerts to %d notifiers...", len(self._notifiers))
         for notifier in self._notifiers:
             try:
                 notifier.send(setup)
