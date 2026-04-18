@@ -1,31 +1,124 @@
-# Scraper Altfins
+# Altfins Scraper
 
-## Introduction
-The **Scraper Altfins** project automates logging into [Altfins](https://altfins.com/) and collecting data from the technical analysis page, then storing it in Supabase.
+Tự động đăng nhập [Altfins](https://altfins.com/), thu thập trade setup từ trang Technical Analysis, lưu vào Supabase và gửi cảnh báo qua Telegram (hỗ trợ nhiều group).
 
-## System Requirements
-- Python 2 or 3 (Python 3 recommended)
-- **pyenv** for managing Python versions (recommended)
+---
 
-## Installation
-1. Install Python (if not already installed):
-  ```sh
-  pyenv install 3.x.x  # Replace 3.x.x with the desired Python version
-  pyenv global 3.x.x
-  ```
+## Kiến trúc
 
-2. Install required packages:
-  ```sh
-  pip install -r requirements.txt
-  ```
+```
+main.py                         # Entry point — khởi tạo dependencies & chạy pipeline
+src/
+├── config.py                   # Centralized config (env vars)
+├── models/
+│   └── trade_setup.py          # Pydantic model — data contract duy nhất
+├── scraper/
+│   ├── driver.py               # Headless Chrome setup
+│   ├── auth.py                 # Email/password login
+│   └── extractor.py            # DOM extraction (grid, popup, image)
+├── parsers/
+│   └── altfins_parser.py       # Parse raw text → TradeSetup, format Telegram message
+├── repositories/
+│   ├── base.py                 # Abstract Repository interface
+│   └── supabase_repository.py  # Supabase implementation
+├── notifiers/
+│   ├── base.py                 # Abstract Notifier interface (Strategy pattern)
+│   ├── telegram_notifier.py    # Gửi alert đến nhiều Telegram group
+│   ├── discord_notifier.py     # Stub — sẵn sàng implement
+│   └── email_notifier.py       # Stub — sẵn sàng implement
+└── pipeline.py                 # Orchestrator: scrape → parse → save → notify
+tests/
+├── test_parser.py
+├── test_repository.py
+├── test_notifiers.py
+└── test_pipeline.py
+```
 
-3. Copy the `.env.example` file to `.env` and fill in the necessary details:
-  ```sh
-  cp .env.example .env
-  ```
+### Flow
 
-## Database Setup
-Run the following SQL command in Supabase to create the `crypto_analysis` table:
+```
+main.py → ScrapePipeline
+              ├── scraper/ (Chrome → login → extract rows/popup/image)
+              ├── parsers/ (raw text → TradeSetup model)
+              ├── repositories/ (find / create / update Supabase)
+              └── notifiers[] (fan-out: Telegram group 1, group 2, ...)
+```
+
+### Design Patterns áp dụng
+
+| Pattern | Áp dụng tại |
+|---|---|
+| **Repository** | `repositories/` — tách DB logic, dễ swap Supabase → Postgres |
+| **Strategy** | `notifiers/` — thêm Discord/Email không cần sửa pipeline |
+| **Pipeline** | `pipeline.py` — mỗi bước tách biệt, dễ test từng phần |
+| **Dependency Injection** | `main.py` — wire dependencies vào pipeline, không có global state |
+
+---
+
+## Yêu cầu hệ thống
+
+- Python 3.9+
+- Google Chrome (cho Selenium)
+
+---
+
+## Cài đặt
+
+```sh
+# 1. Clone repo
+git clone https://github.com/dangchison/altfins.git
+cd altfins
+
+# 2. Cài packages
+pip install -r requirements.txt
+
+# 3. Tạo .env từ template
+cp .env.example .env
+```
+
+---
+
+## Cấu hình `.env`
+
+```env
+# Altfins credentials
+ALTFINS_ACCOUNT=your_email@example.com
+ALTFINS_PASSWORD=your_password
+
+# Supabase
+SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_KEY=your_supabase_anon_key
+
+# Telegram — hỗ trợ nhiều group, cách nhau bởi dấu phẩy
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_IDS=-100123456,-100789012
+
+# Số dòng scrape mỗi lần chạy (mặc định: 2)
+NUM_ROWS=2
+```
+
+> **Lưu ý:** `TELEGRAM_CHAT_IDS` nhận nhiều chat ID cách nhau bởi dấu phẩy — dùng để gửi đến nhiều group Telegram cùng lúc.
+
+---
+
+## Chạy scraper
+
+```sh
+python main.py
+```
+
+---
+
+## Chạy tests
+
+```sh
+python -m pytest tests/ -v
+```
+
+---
+
+## Database Setup (Supabase)
+
 ```sql
 CREATE TABLE crypto_analysis (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -38,7 +131,6 @@ CREATE TABLE crypto_analysis (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Create a trigger to update `updated_at` on changes
 CREATE FUNCTION update_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -53,52 +145,66 @@ FOR EACH ROW
 EXECUTE FUNCTION update_timestamp();
 ```
 
-### Setting up Supabase Credentials
-To connect to Supabase, you need to set up your credentials in the `.env` file:
-```sh
-SUPABASE_URL=your_supabase_url_here
-SUPABASE_KEY=your_supabase_key_here
-```
-Make sure to replace `your_supabase_url_here` and `your_supabase_key_here` with the actual values from your Supabase project.
+---
 
 ## Telegram Bot Setup
-To create a Telegram bot and integrate it with this project, follow these steps:
 
-1. Open Telegram and search for **BotFather**.
-2. Start a chat and send the command:
-  ```
-  /newbot
-  ```
-3. Follow the instructions to set up your bot and get the **Bot Token**.
-4. Copy the token and add it to your `.env` file:
-  ```
-  TELEGRAM_BOT_TOKEN=your_bot_token_here
-  ```
-5. (Optional) If you want the bot to send messages to a specific chat, get the chat ID by sending a message to the bot and using the following API:
-  ```sh
-  https://api.telegram.org/bot<your_bot_token>/getUpdates
-  ```
-6. Add the chat ID to your `.env` file:
-  ```
-  TELEGRAM_CHAT_ID=your_chat_id_here
-  ```
-7. Implement the bot logic in your Python script to send updates via Telegram.
+1. Mở Telegram, tìm **BotFather** và gửi `/newbot`
+2. Làm theo hướng dẫn để lấy **Bot Token**
+3. Thêm bot vào group, lấy chat ID qua:
+   ```
+   https://api.telegram.org/bot<your_token>/getUpdates
+   ```
+4. Điền vào `.env`:
+   ```env
+   TELEGRAM_BOT_TOKEN=your_token
+   TELEGRAM_CHAT_IDS=-100group1,-100group2
+   ```
 
-## Used Packages
-This project uses the following libraries:
-- `selenium` - Automates browser interactions.
-- `webdriver-manager` - Manages browser drivers.
-- `requests` - Sends HTTP requests.
-- `supabase` - Connects to the Supabase database.
-- `dotenv` - Manages environment variables from the `.env` file.
+---
 
-## Running the Scraper
-Run the following command to start the scraper:
-```sh
-python scraper.py
+## Thêm notifier mới (Discord, Email...)
+
+1. Tạo class mới trong `src/notifiers/`, kế thừa `BaseNotifier`
+2. Implement method `send(setup: TradeSetup) -> None`
+3. Đăng ký trong `main.py`:
+
+```python
+from src.notifiers.discord_notifier import DiscordNotifier
+
+notifiers = [
+    TelegramNotifier(...),
+    DiscordNotifier(webhook_url="https://discord.com/api/webhooks/..."),
+]
 ```
 
-## Notes
-- Ensure that all required information is correctly set in the `.env` file before running.
-- If you encounter missing package errors, rerun the installation command.
+---
 
+## Automation (GitHub Actions / cron-job.org)
+
+File `.github/workflows/scrape.yml` chạy `python main.py` theo lịch cron.  
+Các secret cần khai báo trong **Settings → Secrets and variables → Actions**:
+
+| Secret | Mô tả |
+|---|---|
+| `ALTFINS_ACCOUNT` | Email đăng nhập Altfins |
+| `ALTFINS_PASSWORD` | Password Altfins |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_KEY` | Supabase anon key |
+| `TELEGRAM_BOT_TOKEN` | Token của Telegram bot |
+| `TELEGRAM_CHAT_IDS` | Chat IDs cách nhau bởi dấu phẩy |
+
+---
+
+## Packages
+
+| Package | Mục đích |
+|---|---|
+| `selenium` | Điều khiển trình duyệt |
+| `webdriver-manager` | Tự động quản lý ChromeDriver |
+| `requests` | HTTP calls (Telegram API) |
+| `supabase` | Kết nối Supabase |
+| `python-dotenv` | Load `.env` |
+| `pydantic` | Data model & validation |
+| `pydantic-settings` | Load config từ env vars |
+| `pytest` + `pytest-mock` | Unit & integration tests |
