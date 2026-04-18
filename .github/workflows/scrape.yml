@@ -38,4 +38,4 @@ jobs:
           ALTFINS_URL_ANALYSIS: ${{ secrets.ALTFINS_URL_ANALYSIS }}
           ALTFINS_ACCOUNT: ${{ secrets.ALTFINS_ACCOUNT }}
           ALTFINS_PASSWORD: ${{ secrets.ALTFINS_PASSWORD }}
-        run: python scraper.py
+        run: python main.py

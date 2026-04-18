@@ -3,3 +3,7 @@ webdriver-manager
 requests
 supabase
 python-dotenv
+pydantic>=2.0
+pydantic-settings>=2.0
+pytest
+pytest-mock
