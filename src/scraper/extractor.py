@@ -74,30 +74,41 @@ def extract_popup(page: Page) -> RawExtraction:
         "() => (document.querySelector('.curated-chart-detail')?.textContent?.trim()?.length ?? 0) > 50",
         timeout=15_000,
     )
-    raw_text = page.locator(".curated-chart-detail").inner_text().strip()
+    raw_text = page.locator(".curated-chart-detail").last.inner_text().strip()
     log.info("Popup text extracted (%d chars)", len(raw_text))
 
     image_url = ""
-    img = page.locator(".fullscreen-image").first
-    if img.count() > 0:
+    try:
+        page.wait_for_function(
+            "() => { const imgs = document.querySelectorAll('.fullscreen-image'); if (imgs.length === 0) return false; const img = imgs[imgs.length - 1]; return img && img.src && img.src.length > 0; }",
+            timeout=10000,
+        )
+        img = page.locator(".fullscreen-image").last
         image_url = img.get_attribute("src") or ""
         log.info("Popup image extracted")
-    else:
-        log.warning("No image found in popup")
+    except Exception:
+        log.warning("No image found in popup or src was empty")
 
     return RawExtraction(raw_text=raw_text, image_url=image_url)
 
 
 def close_popup(page: Page) -> None:
-    """Close the active Vaadin dialog popup."""
+    """Close the active Vaadin dialog popup or expanded row."""
     try:
-        page.locator("vaadin-dialog-overlay").click(force=True)
+        # 1. Close ALL dialogs via JS (handles multiple overlays)
+        page.evaluate("document.querySelectorAll('vaadin-dialog').forEach(el => el.opened = false)")
+        page.evaluate("document.querySelectorAll('vaadin-dialog-overlay').forEach(el => el.opened = false)")
     except Exception:
-        page.keyboard.press("Escape")
+        pass
 
-    page.wait_for_selector(
-        ".curated-chart-detail",
-        state="hidden",
-        timeout=10_000,
-    )
-    log.info("Popup closed")
+    try:
+        page.locator("body").press("Escape")
+        page.wait_for_selector(".curated-chart-detail", state="hidden", timeout=3_000)
+    except Exception:
+        # If it doesn't close (e.g. it's an expanded grid row that requires another button click),
+        # we just swallow the error. The next extract_popup will use .last to get the latest one.
+        log.info("Popup/Row did not close, continuing anyway.")
+
+    # Vaadin grid often needs time to settle
+    page.wait_for_timeout(2000)
+    log.info("Popup close sequence finished")

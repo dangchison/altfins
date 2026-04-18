@@ -17,12 +17,13 @@ def login(page: Page, email: str, password: str) -> None:
     page.goto(_LOGIN_URL)
 
     # Switch to login tab if site opens on registration tab
-    sign_in = page.locator(
-        "vaadin-horizontal-layout.link-to-tab span.link:text('Sign in')"
-    )
-    if sign_in.count() > 0:
-        sign_in.click()
+    try:
+        page.locator(
+            "vaadin-horizontal-layout.link-to-tab span.link:text('Sign in')"
+        ).click(timeout=5000)
         log.info("Switched to Sign in tab")
+    except Exception:
+        pass  # Already on Login tab, or link didn't appear
 
     # Fill credentials — Playwright auto-waits for element to be interactable
     page.locator("input[name='username']").fill(email)
