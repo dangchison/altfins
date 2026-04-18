@@ -47,5 +47,18 @@ class Settings(BaseSettings):
 
 
 
-# Module-level singleton — import and use `settings` directly
-settings = Settings()
+_settings: Settings | None = None
+
+def get_settings() -> Settings:
+    global _settings
+    if _settings is None:
+        try:
+            _settings = Settings()
+        except Exception as exc:
+            raise RuntimeError(
+                f"Configuration error — check .env file.\n"
+                f"Required: ALTFINS_ACCOUNT, ALTFINS_PASSWORD, "
+                f"SUPABASE_URL, SUPABASE_KEY, TELEGRAM_BOT_TOKEN\n"
+                f"Detail: {exc}"
+            ) from exc
+    return _settings

@@ -52,6 +52,11 @@ def notifier():
 
 class TestTelegramNotifierSend:
 
+    @pytest.fixture(autouse=True)
+    def mock_sleep(self):
+        with patch("time.sleep"):
+            yield
+
     def test_sends_to_all_chat_ids(self, notifier, sample_setup):
         """send() must call the Telegram API for every configured chat ID."""
         with patch("requests.post") as mock_post:

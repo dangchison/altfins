@@ -16,6 +16,7 @@ from supabase import Client, create_client
 
 from src.models.trade_setup import TradeSetup
 from src.repositories.base import BaseRepository
+from src.utils.retry import with_retry
 
 _TABLE = "crypto_analysis"
 
@@ -29,6 +30,7 @@ class SupabaseRepository(BaseRepository):
     # BaseRepository implementation
     # ------------------------------------------------------------------
 
+    @with_retry(max_attempts=3, base_delay=1.0)
     def find(self, coin: str, symbol: str, date: str) -> Optional[str]:
         response = (
             self._client.table(_TABLE)
@@ -44,6 +46,7 @@ class SupabaseRepository(BaseRepository):
             return response.data[0]["id"]
         return None
 
+    @with_retry(max_attempts=3, base_delay=1.0)
     def create(self, setup: TradeSetup) -> Optional[str]:
         now = datetime.now(timezone.utc).isoformat()
         new_id = str(uuid.uuid4())
@@ -64,6 +67,7 @@ class SupabaseRepository(BaseRepository):
         )
         return new_id if response.data else None
 
+    @with_retry(max_attempts=3, base_delay=1.0)
     def update(self, entry_id: str, setup: TradeSetup) -> bool:
         response = (
             self._client.table(_TABLE)

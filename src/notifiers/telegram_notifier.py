@@ -14,6 +14,10 @@ import requests
 from src.models.trade_setup import TradeSetup
 from src.notifiers.base import BaseNotifier
 from src.parsers.altfins_parser import format_telegram_message
+from src.logger import get_logger
+from src.utils.retry import with_retry
+
+log = get_logger(__name__)
 
 _API_BASE = "https://api.telegram.org/bot{token}/{method}"
 
@@ -36,26 +40,30 @@ class TelegramNotifier(BaseNotifier):
     def send(self, setup: TradeSetup) -> None:
         """Fan-out all messages to every configured chat ID."""
         for chat_id in self._chat_ids:
-            self._send_photo(
-                chat_id=chat_id,
-                photo_url=setup.image_url,
-                caption=f"📊 Chart for {setup.coin} ({setup.symbol}) - {setup.date}",
-            )
-            self._send_message(
-                chat_id=chat_id,
-                text=f"🔬 {setup.symbol} - {setup.date} - {setup.raw_text}",
-                parse_mode=None,
-            )
-            self._send_message(
-                chat_id=chat_id,
-                text=format_telegram_message(setup),
-                parse_mode="HTML",
-            )
+            try:
+                self._send_photo(
+                    chat_id=chat_id,
+                    photo_url=setup.image_url,
+                    caption=f"📊 Chart for {setup.coin} ({setup.symbol}) - {setup.date}",
+                )
+                self._send_message(
+                    chat_id=chat_id,
+                    text=f"🔬 {setup.symbol} - {setup.date} - {setup.raw_text}",
+                    parse_mode=None,
+                )
+                self._send_message(
+                    chat_id=chat_id,
+                    text=format_telegram_message(setup),
+                    parse_mode="HTML",
+                )
+            except Exception as exc:
+                log.error("Failed to send alerts to chat %s: %s", chat_id, exc)
 
     # ------------------------------------------------------------------
     # Private HTTP helpers
     # ------------------------------------------------------------------
 
+    @with_retry(max_attempts=3, base_delay=2.0)
     def _send_message(
         self,
         chat_id: str,
@@ -67,14 +75,13 @@ class TelegramNotifier(BaseNotifier):
         if parse_mode:
             payload["parse_mode"] = parse_mode
 
-        try:
-            response = requests.post(url, data=payload, timeout=10)
-            result = response.json()
-            if not result.get("ok"):
-                print(f"⚠️ Telegram sendMessage error (chat {chat_id}): {result}")
-        except Exception as exc:
-            print(f"❌ Telegram sendMessage exception (chat {chat_id}): {exc}")
+        response = requests.post(url, data=payload, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        if not result.get("ok"):
+            raise RuntimeError(f"Telegram sendMessage error (chat {chat_id}): {result}")
 
+    @with_retry(max_attempts=3, base_delay=2.0)
     def _send_photo(
         self,
         chat_id: str,
@@ -87,10 +94,8 @@ class TelegramNotifier(BaseNotifier):
         if parse_mode:
             payload["parse_mode"] = parse_mode
 
-        try:
-            response = requests.post(url, data=payload, timeout=10)
-            result = response.json()
-            if not result.get("ok"):
-                print(f"⚠️ Telegram sendPhoto error (chat {chat_id}): {result}")
-        except Exception as exc:
-            print(f"❌ Telegram sendPhoto exception (chat {chat_id}): {exc}")
+        response = requests.post(url, data=payload, timeout=10)
+        response.raise_for_status()
+        result = response.json()
+        if not result.get("ok"):
+            raise RuntimeError(f"Telegram sendPhoto error (chat {chat_id}): {result}")

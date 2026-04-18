@@ -7,13 +7,14 @@ Wires up dependencies and runs the pipeline.
 Add new notifiers here — no other file needs to change.
 """
 
-from src.config import settings
+from src.config import get_settings
 from src.notifiers.telegram_notifier import TelegramNotifier
 from src.pipeline import ScrapePipeline
 from src.repositories.supabase_repository import SupabaseRepository
 
 
 def main() -> None:
+    settings = get_settings()
     repo = SupabaseRepository(
         url=settings.supabase_url,
         key=settings.supabase_key,

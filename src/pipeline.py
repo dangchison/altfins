@@ -7,7 +7,7 @@ Each step is delegated to its own specialist layer.
 The pipeline itself contains no business logic — it only coordinates.
 """
 
-from src.config import settings
+from src.config import get_settings
 from src.logger import get_logger
 from src.notifiers.base import BaseNotifier
 from src.parsers.altfins_parser import parse
@@ -40,6 +40,7 @@ class ScrapePipeline:
         self._notifiers = notifiers
 
     def run(self) -> None:
+        settings = get_settings()
         log.info("📌 ================= Start =================")
         with BrowserSession() as page:
             login(page, settings.altfins_account, settings.altfins_password)
