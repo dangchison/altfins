@@ -16,7 +16,7 @@ from src.models.trade_setup import TradeSetup
 # Public API
 # ---------------------------------------------------------------------------
 
-def parse(raw_text: str, coin: str, symbol: str, date: str) -> TradeSetup:
+def parse(raw_text: str, coin: str, symbol: str, date: str, image_url: str = "") -> TradeSetup:
     """
     Parse raw popup text from Altfins into a structured TradeSetup model.
     Returns a model with "N/A" defaults for any field that cannot be extracted.
@@ -26,7 +26,7 @@ def parse(raw_text: str, coin: str, symbol: str, date: str) -> TradeSetup:
         "coin": coin,
         "symbol": symbol,
         "raw_text": raw_text,
-        "image_url": "",  # Filled by the pipeline before calling parse()
+        "image_url": image_url,
     }
 
     if not raw_text:

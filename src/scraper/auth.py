@@ -1,60 +1,40 @@
 # -*- coding: utf-8 -*-
-import time
+from __future__ import annotations
+from playwright.sync_api import Page
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from src.logger import get_logger
+
+log = get_logger(__name__)
+
+_LOGIN_URL = "https://altfins.com/login"
 
 
-def login(driver: webdriver.Chrome, email: str, password: str) -> None:
+def login(page: Page, email: str, password: str) -> None:
     """
     Authenticate on altfins.com using email + password.
-    Raises no exceptions on failure — prints error and continues so the
-    caller can decide whether to abort.
+    Raises RuntimeError if login cannot be completed.
     """
-    driver.get("https://altfins.com/login")
+    page.goto(_LOGIN_URL)
 
+    # Switch to login tab if site opens on registration tab
+    sign_in = page.locator(
+        "vaadin-horizontal-layout.link-to-tab span.link:text('Sign in')"
+    )
+    if sign_in.count() > 0:
+        sign_in.click()
+        log.info("Switched to Sign in tab")
+
+    # Fill credentials — Playwright auto-waits for element to be interactable
+    page.locator("input[name='username']").fill(email)
+    page.locator("input[name='password']").fill(password)
+    page.locator("input[name='password']").press("Enter")
+
+    # Wait for redirect away from login page
     try:
-        # altfins may open on the REGISTRATION tab in headless/cold state — switch to login
-        try:
-            sign_in_link = WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((
-                    By.XPATH,
-                    "//vaadin-horizontal-layout[contains(@class, 'link-to-tab')]"
-                    "//span[contains(@class, 'link') and text()='Sign in']",
-                ))
-            )
-            driver.execute_script("arguments[0].click();", sign_in_link)
-            time.sleep(2)
-        except Exception as exc:
-            print(f"⚠️ Could not click 'Sign in' link: {exc}")
-
-        email_input = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='username']"))
+        page.wait_for_url(
+            lambda url: "login" not in url,
+            timeout=15_000,
         )
-        WebDriverWait(driver, 15).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "input[name='username']"))
-        )
-        email_input.clear()
-        email_input.send_keys(email)
-        time.sleep(1)
-
-        pass_input = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='password']"))
-        )
-        pass_input.clear()
-        pass_input.send_keys(password)
-        time.sleep(1)
-        pass_input.send_keys(Keys.RETURN)
-
-        try:
-            WebDriverWait(driver, 10).until(EC.url_changes("https://altfins.com/login"))
-        except Exception:
-            time.sleep(3)  # Safe fallback
-
-        print("✅ Login successful!")
-
+        log.info("Login successful")
     except Exception as exc:
-        print(f"❌ Login error: {exc}")
+        raise RuntimeError(f"Login failed — still on login page: {exc}") from exc

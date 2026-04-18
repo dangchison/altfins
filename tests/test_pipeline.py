@@ -62,17 +62,20 @@ class TestScrapePipeline:
         """Context manager that patches all scraper functions."""
         row = ["0", "Apr 17, 2026", "BTC", "Bitcoin", "60000", "70000", "+5%", "100M"]
 
+        mock_page = MagicMock()
+        mock_session = MagicMock()
+        mock_session.return_value.__enter__.return_value = mock_page
+
+        mock_extraction = MagicMock()
+        mock_extraction.raw_text = "Trade setup: BTC consolidating."
+        mock_extraction.image_url = "https://example.com/chart.png"
+
         patches = {
-            "create_driver": MagicMock(return_value=MagicMock()),
+            "BrowserSession": mock_session,
             "login": MagicMock(),
             "extract_rows": MagicMock(return_value=[row] * num_rows),
             "click_inspect_button": MagicMock(),
-            "extract_popup_text": MagicMock(
-                return_value="Trade setup: BTC consolidating."
-            ),
-            "extract_popup_image": MagicMock(
-                return_value="https://example.com/chart.png"
-            ),
+            "extract_popup": MagicMock(return_value=mock_extraction),
             "close_popup": MagicMock(),
         }
         return patches
@@ -110,7 +113,7 @@ class TestScrapePipeline:
     def test_missing_image_skips_row(self, pipeline, mock_repo, mock_notifier):
         """Rows without an image URL are skipped gracefully."""
         patches = self._patch_scraper()
-        patches["extract_popup_image"] = MagicMock(return_value="")
+        patches["extract_popup"].return_value.image_url = ""
         with patch.multiple("src.pipeline", **patches):
             pipeline.run()
 
@@ -131,24 +134,20 @@ class TestScrapePipeline:
         # Both rows were still created despite notifier failure
         assert mock_repo.create.call_count == 2
 
-    def test_driver_quit_called_on_success(self, pipeline):
-        """driver.quit() must always be called (via finally block)."""
-        mock_driver = MagicMock()
+    def test_browser_session_closed_on_success(self, pipeline):
+        """BrowserSession.__exit__ must always be called."""
         patches = self._patch_scraper()
-        patches["create_driver"] = MagicMock(return_value=mock_driver)
         with patch.multiple("src.pipeline", **patches):
             pipeline.run()
 
-        mock_driver.quit.assert_called_once()
+        patches["BrowserSession"].return_value.__exit__.assert_called_once()
 
-    def test_driver_quit_called_on_exception(self, pipeline):
-        """driver.quit() must be called even if login raises."""
-        mock_driver = MagicMock()
+    def test_browser_session_closed_on_exception(self, pipeline):
+        """BrowserSession.__exit__ must be called even if login raises."""
         patches = self._patch_scraper()
-        patches["create_driver"] = MagicMock(return_value=mock_driver)
         patches["login"] = MagicMock(side_effect=RuntimeError("login failed"))
         with patch.multiple("src.pipeline", **patches):
             with pytest.raises(RuntimeError):
                 pipeline.run()
 
-        mock_driver.quit.assert_called_once()
+        patches["BrowserSession"].return_value.__exit__.assert_called_once()
