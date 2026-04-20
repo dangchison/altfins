@@ -12,6 +12,9 @@ jobs:
   scrape-data:
     runs-on: ubuntu-22.04
 
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.cache/ms-playwright
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -33,7 +36,7 @@ jobs:
         id: pw-cache
         uses: actions/cache@v4
         with:
-          path: ~/.cache/ms-playwright
+          path: .cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ steps.pw-version.outputs.version }}
 
       - name: Install Playwright browsers
