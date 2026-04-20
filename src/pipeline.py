@@ -7,6 +7,7 @@ Each step is delegated to its own specialist layer.
 The pipeline itself contains no business logic — it only coordinates.
 """
 
+import os
 from src.config import get_settings
 from src.logger import get_logger
 from src.notifiers.base import BaseNotifier
@@ -41,16 +42,43 @@ class ScrapePipeline:
 
     def run(self) -> None:
         settings = get_settings()
+        storage_path = "auth_state.json"
+        
         log.info("📌 ================= Start =================")
-        with BrowserSession() as page:
-            login(page, settings.altfins_account, settings.altfins_password)
-            page.goto(_TARGET_URL)
+        
+        # 1. Download session from Supabase
+        has_session = self._repo.download_file("sessions", "auth_state.json", storage_path)
+        if has_session:
+            log.info("Downloaded existing session from Supabase.")
+        else:
+            log.info("No existing session found in Supabase.")
 
-            # Read all rows before opening any popup — grid is stable here
-            raw_rows = extract_rows(page, num_rows=settings.num_rows)
+        # 2. Run scraper with storage state
+        try:
+            with BrowserSession(storage_state=storage_path if has_session else None) as page:
+                login(page, settings.altfins_account, settings.altfins_password)
+                
+                # If we logged in successfully, save the state for next time
+                page.context.storage_state(path=storage_path)
+                
+                page.goto(_TARGET_URL)
 
-            for i, row in enumerate(raw_rows):
-                self._process_row(page, row, row_index=i)
+                # Read all rows before opening any popup
+                raw_rows = extract_rows(page, num_rows=settings.num_rows)
+
+                for i, row in enumerate(raw_rows):
+                    self._process_row(page, row, row_index=i)
+                
+                # 3. Upload updated session back to Supabase
+                self._repo.upload_file("sessions", "auth_state.json", storage_path)
+                log.info("Uploaded updated session to Supabase.")
+
+        except Exception as e:
+            log.error("Pipeline failed: %s", e)
+            raise
+        finally:
+            if has_session and os.path.exists(storage_path):
+                os.remove(storage_path)
 
         log.info("📌 ================= End =================")
 

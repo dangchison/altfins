@@ -35,3 +35,11 @@ class BaseRepository(ABC):
         Update contents and image for an existing entry.
         Return True on success, False otherwise.
         """
+
+    @abstractmethod
+    def download_file(self, bucket: str, remote_path: str, local_path: str) -> bool:
+        """Download a file from storage."""
+
+    @abstractmethod
+    def upload_file(self, bucket: str, remote_path: str, local_path: str) -> bool:
+        """Upload a file to storage."""

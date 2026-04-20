@@ -80,3 +80,25 @@ class SupabaseRepository(BaseRepository):
             .execute()
         )
         return len(response.data) > 0
+
+    def download_file(self, bucket: str, remote_path: str, local_path: str) -> bool:
+        try:
+            with open(local_path, "wb") as f:
+                res = self._client.storage.from_(bucket).download(remote_path)
+                f.write(res)
+            return True
+        except Exception as e:
+            # Common case: file doesn't exist yet
+            return False
+
+    def upload_file(self, bucket: str, remote_path: str, local_path: str) -> bool:
+        try:
+            with open(local_path, "rb") as f:
+                self._client.storage.from_(bucket).upload(
+                    path=remote_path,
+                    file=f,
+                    file_options={"upsert": "true"}
+                )
+            return True
+        except Exception:
+            return False
