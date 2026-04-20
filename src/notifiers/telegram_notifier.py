@@ -44,7 +44,7 @@ class TelegramNotifier(BaseNotifier):
                 self._send_photo(
                     chat_id=chat_id,
                     photo_url=setup.image_url,
-                    caption=f"📊 Chart for {setup.coin} ({setup.symbol}) - {setup.date}",
+                    caption=f"📊 <a href=\"https://www.binance.com/trade/{setup.symbol}_USDT\">{setup.symbol}</a> | {setup.date}",
                 )
                 self._send_message(
                     chat_id=chat_id,

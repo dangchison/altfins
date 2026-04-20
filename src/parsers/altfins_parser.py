@@ -48,7 +48,7 @@ def format_telegram_message(setup: TradeSetup) -> str:
     """
     e = {k: html.escape(str(v)) for k, v in setup.model_dump().items()}
     return (
-        f"🚀 <b>#{e['coin']}</b> Trade Setup | <i>{e['date']}</i>\n\n"
+        f"🚀 <b><a href=\"https://www.binance.com/trade/{e['symbol']}_USDT\">#{e['symbol']}</a></b> Trade Setup | <i>{e['date']}</i>\n\n"
         f"📝 <b>Setup:</b> {e['setup']}\n"
         f"📊 <b>Pattern:</b> {e['pattern']}\n"
         f"📈 <b>Trend:</b> "
