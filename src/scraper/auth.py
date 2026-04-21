@@ -28,16 +28,20 @@ def is_logged_in(page: Page) -> bool:
         # Navigate to a page that requires login
         page.goto("https://altfins.com/technical-analysis", wait_until="domcontentloaded")
         
-        # If we are redirected to login, we are not logged in.
-        # Otherwise, check for the presence of a user-specific element.
-        # For Altfins, usually a profile icon or specific menu exists.
-        # We check if the login input is NOT present after 3 seconds.
+        # Wait for either the login form OR the authenticated drawer menu to appear
+        # drawer-menu is a good indicator of being logged in
         try:
-            page.wait_for_selector("input[name='username']", timeout=3000)
-            return False # Login field found = NOT logged in
+            # We wait for either the login input or the drawer menu
+            page.wait_for_selector("input[name='username'], .nis-drawer-menu", timeout=8000)
         except Exception:
-            # Check if we see the 'curated-chart-detail' or other authenticated markers
-            return "login" not in page.url
+            pass
+
+        # If we see the login input, we are definitely NOT logged in
+        if page.locator("input[name='username']").is_visible():
+            return False
+
+        # If we see the drawer menu or the URL is not login, and we don't see login input
+        return "login" not in page.url and not page.locator("input[name='username']").is_visible()
     except Exception:
         return False
 

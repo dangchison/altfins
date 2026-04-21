@@ -66,8 +66,9 @@ class ScrapePipeline:
             state = storage_path if (settings.use_persistent_session and has_session) else None
             
             with BrowserSession(storage_state=state) as page:
-                # Force login if persistent session is disabled
-                login(page, settings.altfins_account, settings.altfins_password, force=not settings.use_persistent_session)
+                # Force login if persistent session is disabled OR if we have no session data
+                should_force = (not settings.use_persistent_session) or (not has_session)
+                login(page, settings.altfins_account, settings.altfins_password, force=should_force)
                 
                 # Update local storage state if using persistent sessions
                 if settings.use_persistent_session:
