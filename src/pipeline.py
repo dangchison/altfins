@@ -154,7 +154,7 @@ class ScrapePipeline:
                 raw_text=ext.raw_text,
                 image_url=ext.image_url,
                 source_type="MARKET_HIGHLIGHT",
-                category="Highlights", 
+                category=ext.category if ext.category != "N/A" else "Highlights", 
                 pattern_name=ext.pattern_name,
                 status=ext.status,
                 interval=ext.interval,

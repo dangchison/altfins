@@ -28,6 +28,7 @@ class PatternExtraction(BaseModel):
     profit_potential: str = "N/A"
     price: str = "N/A"
     price_change: str = "N/A"
+    category: str = "N/A"
 
 def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternExtraction]:
     """
@@ -89,24 +90,49 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
             if (fallback) globalInterval = fallback.innerText.trim();
         }
 
-        // 2. Select Components based on source type
-        let targetComponents = [];
-        
-        if (sourceType === "MARKET_HIGHLIGHT") {
-            // Take ALL altfins-trading-pattern-component from the FIRST vaadin-board-row only
-            const firstRow = document.querySelector('vaadin-board-row');
-            if (firstRow) {
-                targetComponents = Array.from(firstRow.querySelectorAll('altfins-trading-pattern-component'));
-            }
-        } else {
-            // CHART_PATTERN: All components on the page
-            targetComponents = Array.from(document.querySelectorAll('altfins-trading-pattern-component'));
+        // Default to 1D for Highlights page if nothing found
+        if (globalInterval === "N/A" && window.location.href.includes("highlights")) {
+            globalInterval = "1D";
         }
 
-        // 3. Extract Data
+        // Helper to parse price/change from header text
+        const parseHeader = (headerText) => {
+            if (!headerText) return { price: "N/A", change: "N/A" };
+            const lines = headerText.split('\\n').map(l => l.trim());
+            let price = "N/A";
+            let change = "N/A";
+            
+            for (const line of lines) {
+                if (line.includes('$')) price = line;
+                if (line.includes('%')) change = line;
+            }
+            
+            // Fallback to regex if specific format not found
+            if (price === "N/A") {
+                const pMatch = headerText.match(/\\$\\s*([0-9.,]+)/);
+                if (pMatch) price = pMatch[0].trim();
+            }
+            if (change === "N/A") {
+                const cMatch = headerText.match(/([+-]?\\s*[0-9.,]+%)/);
+                if (cMatch) change = cMatch[0].trim();
+            }
+            
+            return { price, change };
+        };
+
+        // 2. Select Components
+        let targetComponents = Array.from(document.querySelectorAll('altfins-trading-pattern-component'));
+        
+        // 3. Extract Patterns
         targetComponents.forEach(component => {
             const shadow = component.shadowRoot;
             if (!shadow) return;
+
+            // Filter for Highlights page: only first row patterns
+            if (sourceType === "MARKET_HIGHLIGHT") {
+                const firstRow = document.querySelector('vaadin-board-row');
+                if (firstRow && !firstRow.contains(component)) return;
+            }
 
             // Check for Lock
             const isLockedLight = component.querySelector('altfins-chart-pattern-locked-img') !== null;
@@ -116,7 +142,7 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
             
             const isLocked = isLockedLight || isLockedShadow;
 
-            // Extract Header (Light DOM child but with its own shadow root)
+            // Extract Header
             const widgetHeader = component.querySelector('widget-header');
             let symbol = "";
             let coin = "";
@@ -129,14 +155,9 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
                 symbol = primary ? primary.innerText.trim() : "";
                 coin = secondary ? secondary.innerText.trim() : "";
                 
-                // Extract Price and Change from Header
-                // Typically inside .badge-container or similar
-                const headerText = widgetHeader.shadowRoot.textContent || "";
-                const priceMatch = headerText.match(/\$\s*([0-9.,]+)/);
-                const changeMatch = headerText.match(/([+-]?\s*[0-9.,]+%)/);
-                
-                if (priceMatch) price = priceMatch[0].trim();
-                if (changeMatch) priceChange = changeMatch[0].trim();
+                const headerData = parseHeader(widgetHeader.shadowRoot.textContent);
+                price = headerData.price;
+                priceChange = headerData.change;
             }
 
             // Extract Details
@@ -150,16 +171,14 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
             const signal = getVal('Signal:');
             const trend = getVal('Trend:');
             
-            // Per-card interval if global is missing
             let cardInterval = getVal('Interval:');
             if (cardInterval === "N/A") cardInterval = globalInterval;
 
-            // Profit Potential - more robust extraction
             const profitEl = shadow.querySelector('.profit-potential');
             let profitPotential = "N/A";
             if (profitEl) {
                 const pText = profitEl.innerText;
-                const pMatch = pText.match(/[+-]?\s*[0-9.,]+%/);
+                const pMatch = pText.match(/[+-]?\\s*[0-9.,]+%/);
                 profitPotential = pMatch ? pMatch[0].trim() : "N/A";
             }
 
@@ -171,6 +190,7 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
             const imgSrc = img ? img.getAttribute('src') : "";
 
             results.push({
+                type: "PATTERN",
                 symbol,
                 coin,
                 pattern_name: patternName,
@@ -186,6 +206,56 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
                 price_change: priceChange
             });
         });
+
+        // 4. Extract Market Data Components (Tables)
+        if (sourceType === "MARKET_HIGHLIGHT") {
+            const marketComps = Array.from(document.querySelectorAll('altfins-market-data-component'));
+            marketComps.forEach(comp => {
+                const shadow = comp.shadowRoot;
+                const header = comp.querySelector('widget-header');
+                if (!shadow || !header) return;
+
+                const title = header.shadowRoot ? header.shadowRoot.textContent.trim().split('\\n')[0] : "Highlight";
+                
+                // Find grid and its rows
+                // Vaadin grid rows are inside shadow root of vaadin-grid-table-body
+                const grid = shadow.querySelector('vaadin-grid');
+                if (!grid) return;
+
+                // Extract data from rows
+                // Since it's a headless run, we might need to rely on the cell values
+                const rows = Array.from(grid.querySelectorAll('vaadin-grid-cell-content'));
+                // Typically: Symbol, Name, Price, 24h Change
+                // But we'll try to find symbols (usually uppercase, 3-5 chars)
+                
+                // Improved approach: extract by column if possible
+                // For simplicity in this complex Vaadin environment, we'll try to find patterns in the text
+                const text = grid.innerText;
+                const cells = Array.from(grid.querySelectorAll('vaadin-grid-cell-content')).map(c => c.innerText.trim());
+                
+                // Group cells (usually 4-5 per row)
+                // Let's look for Symbol/Price pairs
+                for (let i = 0; i < cells.length; i++) {
+                    const cell = cells[i];
+                    // Symbol is usually first
+                    if (cell && /^[A-Z0-9]{2,10}$/.test(cell) && cells[i+2] && cells[i+2].includes('$')) {
+                        results.push({
+                            type: "HIGHLIGHT",
+                            category: title,
+                            symbol: cell,
+                            coin: cells[i+1] || cell,
+                            price: cells[i+2],
+                            price_change: cells[i+3] || "N/A",
+                            pattern_name: "Market Highlight",
+                            interval: globalInterval,
+                            raw_text: `Market Highlight: ${title}`,
+                            is_locked: false
+                        });
+                        i += 3; // skip processed row
+                    }
+                }
+            });
+        }
 
         return results;
     }"""
@@ -229,7 +299,8 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
             trend=data['trend'],
             profit_potential=data['profit_potential'],
             price=data['price'],
-            price_change=data['price_change']
+            price_change=data['price_change'],
+            category=data.get('category', "N/A")
         ))
             
     log.info("Extracted %d valid patterns.", len(results))

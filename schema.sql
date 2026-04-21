@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS crypto_analysis (
     support TEXT,
     resistance TEXT,
     profit_potential TEXT,
+    price TEXT,
+    price_change TEXT,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

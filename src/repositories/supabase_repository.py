@@ -77,6 +77,8 @@ class SupabaseRepository(BaseRepository):
                 "support": setup.support,
                 "resistance": setup.resistance,
                 "profit_potential": setup.profit_potential,
+                "price": setup.price,
+                "price_change": setup.price_change,
                 "created_at": now,
                 "updated_at": now,
             })
@@ -104,6 +106,8 @@ class SupabaseRepository(BaseRepository):
                 "support": setup.support,
                 "resistance": setup.resistance,
                 "profit_potential": setup.profit_potential,
+                "price": setup.price,
+                "price_change": setup.price_change,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
             .eq("id", entry_id)
