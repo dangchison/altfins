@@ -1,123 +1,83 @@
-# Altfins Scraper
+# Altfins Scraper (v2.0)
 
-Tự động đăng nhập [Altfins](https://altfins.com/), thu thập trade setup từ trang Technical Analysis, lưu vào Supabase và gửi cảnh báo qua Telegram (hỗ trợ nhiều group).
+Tự động đăng nhập [Altfins](https://altfins.com/), thu thập dữ liệu phân tích tiền điện tử từ nhiều nguồn (Technical Analysis, Chart Patterns, Market Highlights), lưu vào Supabase và gửi cảnh báo trực quan qua Telegram.
 
 ---
 
-## Kiến trúc
+## 🌟 Tính năng mới (v2.0)
+
+- **Đa nguồn dữ liệu**: Quét cùng lúc từ 3 mục quan trọng nhất của Altfins.
+- **Dữ liệu thời gian thực**: Lấy chính xác giá hiện tại, biến động 24h và tiềm năng lợi nhuận (Profit Potential).
+- **Playwright Engine**: Chuyển đổi sang Playwright giúp xử lý Shadow DOM cực tốt và tăng tốc độ quét.
+- **Quản lý Session thông minh**: Tự động đồng bộ session login lên Supabase, giúp duy trì trạng thái đăng nhập lâu dài và tránh bị Altfins khóa tài khoản.
+- **Cấu hình Local linh hoạt**: Tùy chọn bỏ qua đồng bộ session khi phát triển ở máy cá nhân.
+
+---
+
+## 🏗 Kiến trúc hệ thống
 
 ```
 main.py                         # Entry point — khởi tạo dependencies & chạy pipeline
 src/
-├── config.py                   # Centralized config (env vars)
+├── config.py                   # Quản lý cấu hình (Environment Variables)
 ├── models/
-│   └── trade_setup.py          # Pydantic model — data contract duy nhất
+│   └── trade_setup.py          # Pydantic model — hợp đồng dữ liệu thống nhất
 ├── scraper/
-│   ├── driver.py               # Headless Chrome setup
-│   ├── auth.py                 # Email/password login
-│   └── extractor.py            # DOM extraction (grid, popup, image)
+│   ├── driver.py               # Playwright setup (Headless Chrome)
+│   ├── auth.py                 # Đăng nhập và quản lý trạng thái phiên
+│   ├── extractor.py            # Trích xuất dữ liệu dạng bảng (Technical Analysis)
+│   └── patterns_extractor.py   # Trích xuất dữ liệu dạng thẻ (Chart Patterns/Highlights)
 ├── parsers/
-│   └── altfins_parser.py       # Parse raw text → TradeSetup, format Telegram message
+│   └── altfins_parser.py       # Phân tích văn bản & định dạng tin nhắn Telegram
 ├── repositories/
-│   ├── base.py                 # Abstract Repository interface
-│   └── supabase_repository.py  # Supabase implementation
+│   ├── base.py                 # Giao diện Repository trừu tượng
+│   └── supabase_repository.py  # Triển khai lưu trữ trên Supabase
 ├── notifiers/
-│   ├── base.py                 # Abstract Notifier interface (Strategy pattern)
-│   ├── telegram_notifier.py    # Gửi alert đến nhiều Telegram group
-│   ├── discord_notifier.py     # Stub — sẵn sàng implement
-│   └── email_notifier.py       # Stub — sẵn sàng implement
-└── pipeline.py                 # Orchestrator: scrape → parse → save → notify
-tests/
-├── test_parser.py
-├── test_repository.py
-├── test_notifiers.py
-└── test_pipeline.py
+│   ├── base.py                 # Giao diện Notifier trừu tượng
+│   └── telegram_notifier.py    # Gửi cảnh báo đa group Telegram
+└── pipeline.py                 # Điều phối luồng: scrape → parse → save → notify
 ```
-
-### Flow
-
-```
-main.py → ScrapePipeline
-              ├── scraper/ (Chrome → login → extract rows/popup/image)
-              ├── parsers/ (raw text → TradeSetup model)
-              ├── repositories/ (find / create / update Supabase)
-              └── notifiers[] (fan-out: Telegram group 1, group 2, ...)
-```
-
-### Design Patterns áp dụng
-
-| Pattern | Áp dụng tại |
-|---|---|
-| **Repository** | `repositories/` — tách DB logic, dễ swap Supabase → Postgres |
-| **Strategy** | `notifiers/` — thêm Discord/Email không cần sửa pipeline |
-| **Pipeline** | `pipeline.py` — mỗi bước tách biệt, dễ test từng phần |
-| **Dependency Injection** | `main.py` — wire dependencies vào pipeline, không có global state |
 
 ---
 
-## Yêu cầu hệ thống
-
-- Python 3.9+
-- Google Chrome (cho Selenium)
-
----
-
-## Cài đặt
+## ⚙️ Cài đặt
 
 ```sh
 # 1. Clone repo
 git clone https://github.com/dangchison/altfins.git
 cd altfins
 
-# 2. Cài packages
+# 2. Cài đặt các gói phụ thuộc
 pip install -r requirements.txt
 
-# 3. Tạo .env từ template
+# 3. Cài đặt trình duyệt cho Playwright
+playwright install chromium
+
+# 4. Tạo file cấu hình
 cp .env.example .env
 ```
 
 ---
 
-## Cấu hình `.env`
+## 📄 Cấu hình `.env`
 
-```env
-# Altfins credentials
-ALTFINS_ACCOUNT=your_email@example.com
-ALTFINS_PASSWORD=your_password
-
-# Supabase
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_KEY=your_supabase_anon_key
-
-# Telegram — hỗ trợ nhiều group, cách nhau bởi dấu phẩy
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_IDS=-100123456,-100789012
-
-# Số dòng scrape mỗi lần chạy (mặc định: 2)
-NUM_ROWS=2
-```
-
-> **Lưu ý:** `TELEGRAM_CHAT_IDS` nhận nhiều chat ID cách nhau bởi dấu phẩy — dùng để gửi đến nhiều group Telegram cùng lúc.
+| Biến | Mô tả |
+|---|---|
+| `ALTFINS_ACCOUNT` | Email tài khoản Altfins |
+| `ALTFINS_PASSWORD` | Mật khẩu tài khoản Altfins |
+| `SUPABASE_URL` | Đường dẫn dự án Supabase |
+| `SUPABASE_KEY` | Khóa API Anon của Supabase |
+| `TELEGRAM_BOT_TOKEN` | Token từ BotFather |
+| `TELEGRAM_CHAT_IDS` | Danh sách ID chat (cách nhau bởi dấu phẩy) |
+| `TECHNICAL_ANALYSIS_MAX_ROWS` | Số dòng tối đa cần quét ở trang TA |
+| `ENABLE_...` | Bật/Tắt quét từ các nguồn tương ứng (true/false) |
+| `USE_PERSISTENT_SESSION` | `true` để đồng bộ session với Supabase, `false` để chạy local |
 
 ---
 
-## Chạy scraper
+## 🗄 Database Setup (Supabase)
 
-```sh
-python main.py
-```
-
----
-
-## Chạy tests
-
-```sh
-python -m pytest tests/ -v
-```
-
----
-
-## Database Setup (Supabase)
+Sử dụng câu lệnh SQL sau để tạo bảng dữ liệu:
 
 ```sql
 CREATE TABLE crypto_analysis (
@@ -127,84 +87,32 @@ CREATE TABLE crypto_analysis (
   symbol TEXT NOT NULL,
   contents TEXT NOT NULL,
   image TEXT NOT NULL,
+  source_type TEXT DEFAULT 'TECHNICAL_ANALYSIS',
+  pattern_name TEXT,
+  interval TEXT,
+  status TEXT,
+  signal TEXT,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
-
-CREATE FUNCTION update_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trigger_update_timestamp
-BEFORE UPDATE ON crypto_analysis
-FOR EACH ROW
-EXECUTE FUNCTION update_timestamp();
 ```
 
 ---
 
-## Telegram Bot Setup
+## 🚀 Chạy ứng dụng
 
-1. Mở Telegram, tìm **BotFather** và gửi `/newbot`
-2. Làm theo hướng dẫn để lấy **Bot Token**
-3. Thêm bot vào group, lấy chat ID qua:
-   ```
-   https://api.telegram.org/bot<your_token>/getUpdates
-   ```
-4. Điền vào `.env`:
-   ```env
-   TELEGRAM_BOT_TOKEN=your_token
-   TELEGRAM_CHAT_IDS=-100group1,-100group2
-   ```
+```sh
+# Chạy scraper chính
+python main.py
 
----
-
-## Thêm notifier mới (Discord, Email...)
-
-1. Tạo class mới trong `src/notifiers/`, kế thừa `BaseNotifier`
-2. Implement method `send(setup: TradeSetup) -> None`
-3. Đăng ký trong `main.py`:
-
-```python
-from src.notifiers.discord_notifier import DiscordNotifier
-
-notifiers = [
-    TelegramNotifier(...),
-    DiscordNotifier(webhook_url="https://discord.com/api/webhooks/..."),
-]
+# Chạy kiểm thử
+python -m pytest tests/ -v
 ```
 
 ---
 
-## Automation (GitHub Actions / cron-job.org)
+## 🤖 GitHub Actions
 
-File `.github/workflows/scrape.yml` chạy `python main.py` theo lịch cron.  
-Các secret cần khai báo trong **Settings → Secrets and variables → Actions**:
+Hệ thống được thiết kế để chạy tự động qua GitHub Actions. Hãy khai báo các biến trong phần **Repository Secrets** giống như trong file `.env`. 
 
-| Secret | Mô tả |
-|---|---|
-| `ALTFINS_ACCOUNT` | Email đăng nhập Altfins |
-| `ALTFINS_PASSWORD` | Password Altfins |
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_KEY` | Supabase anon key |
-| `TELEGRAM_BOT_TOKEN` | Token của Telegram bot |
-| `TELEGRAM_CHAT_IDS` | Chat IDs cách nhau bởi dấu phẩy |
-
----
-
-## Packages
-
-| Package | Mục đích |
-|---|---|
-| `selenium` | Điều khiển trình duyệt |
-| `webdriver-manager` | Tự động quản lý ChromeDriver |
-| `requests` | HTTP calls (Telegram API) |
-| `supabase` | Kết nối Supabase |
-| `python-dotenv` | Load `.env` |
-| `pydantic` | Data model & validation |
-| `pydantic-settings` | Load config từ env vars |
-| `pytest` + `pytest-mock` | Unit & integration tests |
+File workflow nằm tại: `.github/workflows/scrape.yml`
