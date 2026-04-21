@@ -68,7 +68,7 @@ class ScrapePipeline:
             with BrowserSession(storage_state=state) as page:
                 # Force login if persistent session is disabled OR if we have no session data
                 should_force = (not settings.use_persistent_session) or (not has_session)
-                login(page, settings.altfins_account, settings.altfins_password, force=should_force)
+                did_login = login(page, settings.altfins_account, settings.altfins_password, force=should_force)
                 
                 # Update local storage state if using persistent sessions
                 if settings.use_persistent_session:
@@ -86,10 +86,13 @@ class ScrapePipeline:
                 if settings.enable_market_highlights:
                     self._scrape_market_highlights(page, settings)
                 
-                # 3. Upload updated session back to Supabase (if enabled)
+                # 3. Upload updated session back to Supabase (if enabled and session was updated)
                 if settings.use_persistent_session:
-                    self._repo.upload_file("sessions", "auth_state.json", storage_path)
-                    log.info("Uploaded updated session to Supabase.")
+                    if did_login or not has_session:
+                        self._repo.upload_file("sessions", "auth_state.json", storage_path)
+                        log.info("Uploaded updated session to Supabase.")
+                    else:
+                        log.debug("Session was reused, skipping upload.")
                 else:
                     log.info("Skipping session upload (local mode).")
 

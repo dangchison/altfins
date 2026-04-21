@@ -9,17 +9,19 @@ log = get_logger(__name__)
 _LOGIN_URL = "https://altfins.com/login"
 
 
-def login(page: Page, email: str, password: str, force: bool = False) -> None:
+def login(page: Page, email: str, password: str, force: bool = False) -> bool:
     """
     Authenticate on altfins.com. 
     Skips the login flow if the session is already valid, unless force=True.
+    Returns True if a full login was performed, False otherwise.
     """
     # Check if already logged in (e.g. from loaded storage state)
     if not force and is_logged_in(page):
         log.info("Session is still valid, skipping login flow.")
-        return
+        return False
 
     perform_full_login(page, email, password)
+    return True
 
 
 def is_logged_in(page: Page) -> bool:
