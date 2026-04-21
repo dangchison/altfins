@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     telegram_chat_ids: str = ""
 
     # Scraper behaviour
-    num_rows: int = 2
+    technical_analysis_max_rows: int = 2
+    enable_technical_analysis: bool = True
+    enable_chart_patterns: bool = True
+    enable_market_highlights: bool = True
+    use_persistent_session: bool = True
 
     @field_validator("telegram_chat_ids", mode="before")
     @classmethod

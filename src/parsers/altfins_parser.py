@@ -43,22 +43,43 @@ def parse(raw_text: str, coin: str, symbol: str, date: str, image_url: str = "")
 
 def format_telegram_message(setup: TradeSetup) -> str:
     """
-    Format a TradeSetup into an HTML Telegram message.
-    All values are HTML-escaped to prevent parse_mode breakage on < > chars.
+    Format a TradeSetup into an HTML Telegram message based on its source.
     """
     e = {k: html.escape(str(v)) for k, v in setup.model_dump().items()}
+    
+    # Common Link
+    binance_link = f"<a href=\"https://www.binance.com/trade/{e['symbol']}_USDT\">#{e['symbol']}</a>"
+
+    if setup.source_type == "TECHNICAL_ANALYSIS":
+        return (
+            f"🚀 <b>{binance_link}</b> Technical Analysis | <i>{e['date']}</i>\n\n"
+            f"📝 <b>Setup:</b> {e['setup']}\n"
+            f"📊 <b>Pattern:</b> {e['pattern']}\n"
+            f"📈 <b>Trend:</b> "
+            f"S {trend_icon(setup.s_trend)} | "
+            f"M {trend_icon(setup.m_trend)} | "
+            f"L {trend_icon(setup.l_trend)}\n"
+            f"⏱ <b>Momentum:</b> {momentum_icon(setup.momentum)} {e['momentum']}\n"
+            f"⚡ <b>RSI:</b> {e['rsi']}\n"
+            f"🛡 <b>Support:</b> {e['support']}\n"
+            f"⚔️ <b>Resistance:</b> {e['resistance']}"
+        )
+    
+    # For Chart Patterns and Market Highlights (Card-based)
+    icon = "📐" if setup.source_type == "CHART_PATTERN" else "⭐"
+    source_name = "CHART PATTERN" if setup.source_type == "CHART_PATTERN" else f"MARKET HIGHLIGHT ({e['category']})"
+    
     return (
-        f"🚀 <b><a href=\"https://www.binance.com/trade/{e['symbol']}_USDT\">#{e['symbol']}</a></b> Trade Setup | <i>{e['date']}</i>\n\n"
-        f"📝 <b>Setup:</b> {e['setup']}\n"
-        f"📊 <b>Pattern:</b> {e['pattern']}\n"
-        f"📈 <b>Trend:</b> "
-        f"S {trend_icon(setup.s_trend)} | "
-        f"M {trend_icon(setup.m_trend)} | "
-        f"L {trend_icon(setup.l_trend)}\n"
-        f"⏱ <b>Momentum:</b> {momentum_icon(setup.momentum)} {e['momentum']}\n"
-        f"⚡ <b>RSI:</b> {e['rsi']}\n"
-        f"🛡 <b>Support:</b> {e['support']}\n"
-        f"⚔️ <b>Resistance:</b> {e['resistance']}"
+        f"{icon} <b>{source_name}: {binance_link}</b>\n"
+        f"💰 <b>Price:</b> {e['price']} (<i>{e['price_change']}</i>)\n\n"
+        f"🟢 <b>Status:</b> {e['status']}\n"
+        f"📉 <b>Pattern:</b> {e['pattern_name']}\n"
+        f"⏱ <b>Interval:</b> {e['interval']}\n"
+        f"📊 <b>Signal:</b> {e['signal']}\n"
+        f"📈 <b>Trend:</b> {e['s_trend']}\n"
+        f"🎯 <b>Profit Potential:</b> <b>{e['profit_potential']}</b>\n\n"
+        f"📝 <b>Analysis:</b>\n"
+        f"<i>{e['raw_text']}</i>"
     )
 
 

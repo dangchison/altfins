@@ -17,9 +17,9 @@ from src.models.trade_setup import TradeSetup
 class BaseRepository(ABC):
 
     @abstractmethod
-    def find(self, coin: str, symbol: str, date: str) -> Optional[str]:
+    def find(self, setup: TradeSetup) -> Optional[str]:
         """
-        Return the existing entry ID if a record for (coin, symbol, date)
+        Return the existing entry ID if a record matching the setup
         already exists, otherwise return None.
         """
 

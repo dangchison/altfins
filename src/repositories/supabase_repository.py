@@ -31,14 +31,15 @@ class SupabaseRepository(BaseRepository):
     # ------------------------------------------------------------------
 
     @with_retry(max_attempts=3, base_delay=1.0)
-    def find(self, coin: str, symbol: str, date: str) -> Optional[str]:
+    def find(self, setup: TradeSetup) -> Optional[str]:
         response = (
             self._client.table(_TABLE)
             .select("id")
-            .eq("coin", coin)
-            .eq("symbol", symbol)
-            .eq("date", date)
-            .order("updated_at", desc=True)
+            .eq("symbol", setup.symbol)
+            .eq("source_type", setup.source_type)
+            .eq("category", setup.category)
+            .eq("pattern_name", setup.pattern_name)
+            .eq("date", setup.date)
             .limit(1)
             .execute()
         )
@@ -60,6 +61,22 @@ class SupabaseRepository(BaseRepository):
                 "symbol": setup.symbol,
                 "contents": setup.raw_text,
                 "image": setup.image_url,
+                "source_type": setup.source_type,
+                "category": setup.category,
+                "pattern_name": setup.pattern_name,
+                "setup": setup.setup,
+                "pattern": setup.pattern,
+                "interval": setup.interval,
+                "status": setup.status,
+                "signal": setup.signal,
+                "s_trend": setup.s_trend,
+                "m_trend": setup.m_trend,
+                "l_trend": setup.l_trend,
+                "momentum": setup.momentum,
+                "rsi": setup.rsi,
+                "support": setup.support,
+                "resistance": setup.resistance,
+                "profit_potential": setup.profit_potential,
                 "created_at": now,
                 "updated_at": now,
             })
@@ -74,6 +91,19 @@ class SupabaseRepository(BaseRepository):
             .update({
                 "contents": setup.raw_text,
                 "image": setup.image_url,
+                "setup": setup.setup,
+                "pattern": setup.pattern,
+                "interval": setup.interval,
+                "status": setup.status,
+                "signal": setup.signal,
+                "s_trend": setup.s_trend,
+                "m_trend": setup.m_trend,
+                "l_trend": setup.l_trend,
+                "momentum": setup.momentum,
+                "rsi": setup.rsi,
+                "support": setup.support,
+                "resistance": setup.resistance,
+                "profit_potential": setup.profit_potential,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
             .eq("id", entry_id)
