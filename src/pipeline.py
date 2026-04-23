@@ -203,7 +203,23 @@ class ScrapePipeline:
         close_popup(page)
 
     def _persist_and_notify(self, setup: TradeSetup) -> None:
-        """Centralized persistence and notification logic."""
+        """Centralized persistence and notification logic.
+
+        Deduplication priority: CHART_PATTERN > MARKET_HIGHLIGHT.
+        If the same symbol + pattern_name + interval + date already exists under
+        a different source_type, the incoming MARKET_HIGHLIGHT entry is skipped
+        entirely — no DB insert, no Telegram notification.
+        """
+        # Cross-source dedup: skip MARKET_HIGHLIGHT if CHART_PATTERN already captured it
+        if setup.source_type == "MARKET_HIGHLIGHT":
+            cross_id = self._repo.find_cross_source(setup)
+            if cross_id:
+                log.info(
+                    "⏭ Cross-source skip: %s (%s) — pattern '%s' [%s] already exists as CHART_PATTERN",
+                    setup.coin, setup.symbol, setup.pattern_name, setup.interval,
+                )
+                return
+
         existing_id = self._repo.find(setup)
         if not existing_id:
             log.info("✅ New setup: %s (%s) [%s]", setup.coin, setup.symbol, setup.source_type)
@@ -211,7 +227,7 @@ class ScrapePipeline:
             if entry_id:
                 self._notify_all(setup)
         else:
-            log.debug("Duplicate setup skipped: %s (%s)", setup.coin, setup.symbol)
+            log.info("⏭ Same-source skip: %s (%s) [%s] — already in DB", setup.coin, setup.symbol, setup.source_type)
 
     def _notify_all(self, setup: TradeSetup) -> None:
         """Fan-out to every registered notifier. Errors are isolated per notifier."""

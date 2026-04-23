@@ -95,27 +95,17 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
             globalInterval = "1D";
         }
 
-        // Helper to parse price/change from header text
-        const parseHeader = (headerText) => {
-            if (!headerText) return { price: "N/A", change: "N/A" };
-            const lines = headerText.split('\\n').map(l => l.trim());
-            let price = "N/A";
-            let change = "N/A";
+        // Extract price/change directly from widget-header shadow DOM IDs.
+        // The shadow root has explicit #price and #price-change elements — far more
+        // reliable than parsing textContent which is whitespace-heavy.
+        const extractPriceFromHeader = (shadowRoot) => {
+            if (!shadowRoot) return { price: "N/A", change: "N/A" };
             
-            for (const line of lines) {
-                if (line.includes('$')) price = line;
-                if (line.includes('%')) change = line;
-            }
+            const priceEl = shadowRoot.querySelector('#price');
+            const changeEl = shadowRoot.querySelector('#price-change');
             
-            // Fallback to regex if specific format not found
-            if (price === "N/A") {
-                const pMatch = headerText.match(/\\$\\s*([0-9.,]+)/);
-                if (pMatch) price = pMatch[0].trim();
-            }
-            if (change === "N/A") {
-                const cMatch = headerText.match(/([+-]?\\s*[0-9.,]+%)/);
-                if (cMatch) change = cMatch[0].trim();
-            }
+            const price = priceEl ? priceEl.innerText.trim() : "N/A";
+            const change = changeEl ? changeEl.innerText.trim() : "N/A";
             
             return { price, change };
         };
@@ -155,7 +145,7 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
                 symbol = primary ? primary.innerText.trim() : "";
                 coin = secondary ? secondary.innerText.trim() : "";
                 
-                const headerData = parseHeader(widgetHeader.shadowRoot.textContent);
+                const headerData = extractPriceFromHeader(widgetHeader.shadowRoot);
                 price = headerData.price;
                 priceChange = headerData.change;
             }

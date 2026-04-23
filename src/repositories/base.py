@@ -24,6 +24,15 @@ class BaseRepository(ABC):
         """
 
     @abstractmethod
+    def find_cross_source(self, setup: TradeSetup) -> Optional[str]:
+        """
+        Return the existing entry ID if a record with the same symbol,
+        pattern_name, interval, and date exists under a DIFFERENT source_type.
+        Used to prevent duplicate notifications when the same pattern appears
+        on both Chart Patterns and Market Highlights pages.
+        """
+
+    @abstractmethod
     def create(self, setup: TradeSetup) -> Optional[str]:
         """
         Insert a new entry and return its ID, or None on failure.

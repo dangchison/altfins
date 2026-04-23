@@ -48,6 +48,24 @@ class SupabaseRepository(BaseRepository):
         return None
 
     @with_retry(max_attempts=3, base_delay=1.0)
+    def find_cross_source(self, setup: TradeSetup) -> Optional[str]:
+        """Check if the same pattern exists under a different source_type."""
+        response = (
+            self._client.table(_TABLE)
+            .select("id")
+            .eq("symbol", setup.symbol)
+            .eq("pattern_name", setup.pattern_name)
+            .eq("interval", setup.interval)
+            .eq("date", setup.date)
+            .neq("source_type", setup.source_type)
+            .limit(1)
+            .execute()
+        )
+        if response.data:
+            return response.data[0]["id"]
+        return None
+
+    @with_retry(max_attempts=3, base_delay=1.0)
     def create(self, setup: TradeSetup) -> Optional[str]:
         now = datetime.now(timezone.utc).isoformat()
         new_id = str(uuid.uuid4())
