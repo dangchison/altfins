@@ -49,4 +49,15 @@ ALTER TABLE crypto_analysis
   ADD COLUMN IF NOT EXISTS sma_200_trend TEXT,
   ADD COLUMN IF NOT EXISTS ema_9_trend TEXT,
   ADD COLUMN IF NOT EXISTS ema_26_trend TEXT,
-  ADD COLUMN IF NOT EXISTS ma_summary TEXT;
+  ADD COLUMN IF NOT EXISTS ma_summary TEXT,
+
+  -- Trend Scorecard (altfins-scorecard shadow DOM)
+  ADD COLUMN IF NOT EXISTS s_trend TEXT,
+  ADD COLUMN IF NOT EXISTS m_trend TEXT,
+  ADD COLUMN IF NOT EXISTS l_trend TEXT,
+
+  -- Binance multi-timeframe volume (public API, no auth required)
+  ADD COLUMN IF NOT EXISTS binance_vol_4h TEXT,
+  ADD COLUMN IF NOT EXISTS binance_vol_1d TEXT,
+  ADD COLUMN IF NOT EXISTS binance_vol_3d TEXT,
+  ADD COLUMN IF NOT EXISTS binance_vol_7d TEXT;

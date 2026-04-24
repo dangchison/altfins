@@ -85,3 +85,8 @@ class TradeSetup(BaseModel):
     ema_26_trend: str = "N/A"
     ma_summary: str = "N/A"    # Full MA grid as JSON string
 
+    # Binance multi-timeframe volume (Binance public API — no auth required)
+    binance_vol_4h: str = "N/A"   # Quote volume (USDT) last 4h candle
+    binance_vol_1d: str = "N/A"   # Quote volume (USDT) last 1d candle
+    binance_vol_3d: str = "N/A"   # Sum quote volume last 3 daily candles
+    binance_vol_7d: str = "N/A"   # Sum quote volume last 7 daily candles

@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS crypto_analysis (
     ema_26_trend TEXT,         -- EMA 26 Trend (Up/Down)
     ma_summary TEXT,           -- Full MA grid as JSON for completeness
 
+    -- Binance multi-timeframe volume (public API, no auth required)
+    binance_vol_4h TEXT,       -- Quote volume (USDT) last 4h candle
+    binance_vol_1d TEXT,       -- Quote volume (USDT) last 1d candle
+    binance_vol_3d TEXT,       -- Sum quote volume last 3 daily candles
+    binance_vol_7d TEXT,       -- Sum quote volume last 7 daily candles
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_crypto_setup UNIQUE (symbol, source_type, category, pattern_name, date)

@@ -141,6 +141,11 @@ class SupabaseRepository(BaseRepository):
                 "ema_9_trend": setup.ema_9_trend,
                 "ema_26_trend": setup.ema_26_trend,
                 "ma_summary": setup.ma_summary,
+                # Binance multi-timeframe volume
+                "binance_vol_4h": setup.binance_vol_4h,
+                "binance_vol_1d": setup.binance_vol_1d,
+                "binance_vol_3d": setup.binance_vol_3d,
+                "binance_vol_7d": setup.binance_vol_7d,
                 "created_at": now,
                 "updated_at": now,
             })
@@ -214,6 +219,11 @@ class SupabaseRepository(BaseRepository):
                 "ema_9_trend": setup.ema_9_trend,
                 "ema_26_trend": setup.ema_26_trend,
                 "ma_summary": setup.ma_summary,
+                # Binance multi-timeframe volume
+                "binance_vol_4h": setup.binance_vol_4h,
+                "binance_vol_1d": setup.binance_vol_1d,
+                "binance_vol_3d": setup.binance_vol_3d,
+                "binance_vol_7d": setup.binance_vol_7d,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
             .eq("id", entry_id)

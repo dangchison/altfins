@@ -27,6 +27,7 @@ from src.scraper.extractor import (
 )
 from src.scraper.patterns_extractor import extract_patterns
 from src.scraper.drawer_extractor import extract_card_indicators
+from src.services.binance_service import fetch_volume
 from src.models.trade_setup import TradeSetup
 
 log = get_logger(__name__)
@@ -185,6 +186,13 @@ class ScrapePipeline:
                 setup.s_trend = drawer.s_trend
                 setup.m_trend = drawer.m_trend
                 setup.l_trend = drawer.l_trend
+
+            # Enrich with Binance multi-timeframe volume (public API, no auth)
+            binance = fetch_volume(ext.symbol)
+            setup.binance_vol_4h = binance.vol_4h
+            setup.binance_vol_1d = binance.vol_1d
+            setup.binance_vol_3d = binance.vol_3d
+            setup.binance_vol_7d = binance.vol_7d
 
             self._persist_and_notify(setup)
 

@@ -46,7 +46,7 @@ def format_telegram_message(setup: TradeSetup) -> str:
     Format a TradeSetup into an HTML Telegram message based on its source.
     """
     e = {k: html.escape(str(v)) for k, v in setup.model_dump().items()}
-    
+
     # Common Link
     binance_link = f"<a href=\"https://www.binance.com/trade/{e['symbol']}_USDT\">#{e['symbol']}</a>"
 
@@ -64,23 +64,124 @@ def format_telegram_message(setup: TradeSetup) -> str:
             f"🛡 <b>Support:</b> {e['support']}\n"
             f"⚔️ <b>Resistance:</b> {e['resistance']}"
         )
-    
-    # For Chart Patterns and Market Highlights (Card-based)
-    icon = "📐" if setup.source_type == "CHART_PATTERN" else "⭐"
-    source_name = "CHART PATTERN" if setup.source_type == "CHART_PATTERN" else f"MARKET HIGHLIGHT ({e['category']})"
-    
-    return (
-        f"{icon} <b>{source_name}: {binance_link}</b>\n"
-        f"💰 <b>Price:</b> {e['price']} (<i>{e['price_change']}</i>)\n\n"
-        f"🟢 <b>Status:</b> {e['status']}\n"
-        f"📉 <b>Pattern:</b> {e['pattern_name']}\n"
-        f"⏱ <b>Interval:</b> {e['interval']}\n"
-        f"📊 <b>Signal:</b> {e['signal']}\n"
-        f"📈 <b>Trend:</b> {e['s_trend']}\n"
-        f"🎯 <b>Profit Potential:</b> <b>{e['profit_potential']}</b>\n\n"
-        f"📝 <b>Analysis:</b>\n"
-        f"<i>{e['raw_text']}</i>"
+
+    if setup.source_type == "MARKET_HIGHLIGHT":
+        return (
+            f"⭐ <b>MARKET HIGHLIGHT ({e['category']}): {binance_link}</b>\n"
+            f"💰 <b>Price:</b> {e['price']} (<i>{e['price_change']}</i>)\n\n"
+            f"🟢 <b>Status:</b> {e['status']}\n"
+            f"📉 <b>Pattern:</b> {e['pattern_name']}\n"
+            f"⏱ <b>Interval:</b> {e['interval']}\n"
+            f"📊 <b>Signal:</b> {e['signal']}\n"
+            f"📈 <b>Trend:</b> {e['s_trend']}\n"
+            f"🎯 <b>Profit Potential:</b> <b>{e['profit_potential']}</b>\n\n"
+            f"📝 <b>Analysis:</b>\n"
+            f"<i>{e['raw_text']}</i>"
+        )
+
+    # -----------------------------------------------------------------------
+    # CHART_PATTERN — full indicator enriched message
+    # -----------------------------------------------------------------------
+    def _val(field: str) -> str:
+        """Return field value or '—' if N/A."""
+        v = e.get(field, "N/A")
+        return "—" if v == "N/A" else v
+
+    def _pct(field: str) -> str:
+        """Format % change: prepend + if positive, skip if N/A."""
+        v = e.get(field, "N/A")
+        if v == "N/A" or v == "—":
+            return "—"
+        return v if v.startswith("-") or v.startswith("+") else f"+{v}"
+
+    def _signal_icon(val: str) -> str:
+        t = val.lower()
+        if "bullish" in t or "up" in t or "buy" in t:
+            return "🟢"
+        if "bearish" in t or "down" in t or "sell" in t:
+            return "🔴"
+        if "overbought" in t:
+            return "⚠️"
+        if "oversold" in t:
+            return "✅"
+        return "⚪"
+
+    # Trend score line
+    s = _val("s_trend")
+    m = _val("m_trend")
+    l = _val("l_trend")
+    trend_line = (
+        f"{trend_icon(setup.s_trend)} <b>S:</b> {s}  "
+        f"{trend_icon(setup.m_trend)} <b>M:</b> {m}  "
+        f"{trend_icon(setup.l_trend)} <b>L:</b> {l}"
     )
+
+    # BB cross alert (only show if Yes)
+    bb_alerts = []
+    if _val("bb_cross_upper") == "Yes":
+        bb_alerts.append("⚡ Price crossed Upper BB")
+    if _val("bb_cross_lower") == "Yes":
+        bb_alerts.append("⚡ Price crossed Lower BB")
+    bb_alert_line = "\n".join(bb_alerts) + "\n" if bb_alerts else ""
+
+    # % change summary (compact)
+    change_parts = []
+    for label, field in [("1D", "change_1d"), ("1W", "change_1w"), ("1M", "change_1m"), ("3M", "change_3m")]:
+        v = _pct(field)
+        if v != "—":
+            change_parts.append(f"{label}: {v}")
+    change_line = " | ".join(change_parts) if change_parts else "—"
+
+    # 52W context
+    w52_pct = _val("pct_from_52w_high")
+    ath_pct = _val("pct_from_ath")
+    context_line = ""
+    if w52_pct != "—" or ath_pct != "—":
+        context_line = (
+            f"\n📅 <b>52W High:</b> {_val('week52_high')} ({w52_pct} from high)  "
+            f"| <b>ATH:</b> {ath_pct} down"
+        )
+
+    return (
+        f"📐 <b>CHART PATTERN: {binance_link}</b>\n"
+        f"💰 <b>Price:</b> {_val('price')} (<i>{_val('price_change')}</i>)  "
+        f"H: {_val('price_high')} / L: {_val('price_low')}\n\n"
+        # Pattern core
+        f"🟢 <b>Status:</b> {_val('status')}\n"
+        f"📉 <b>Pattern:</b> {_val('pattern_name')}\n"
+        f"⏱ <b>Interval:</b> {_val('interval')}\n"
+        f"📊 <b>Signal:</b> {_val('signal')}\n"
+        f"🎯 <b>Profit Potential:</b> <b>{_val('profit_potential')}</b>\n\n"
+        # Trend scores
+        f"📈 <b>Trend Scores:</b>\n{trend_line}\n\n"
+        # Key indicators
+        f"🔬 <b>Indicators:</b>\n"
+        f"  RSI14: {_signal_icon(_val('rsi_14'))} {_val('rsi_14')}  "
+        f"| Divergence: {_val('rsi_divergence')}\n"
+        f"  MACD: {_signal_icon(_val('macd_signal'))} {_val('macd_signal')}  "
+        f"| ADX: {_val('adx_signal')}\n"
+        f"  StochRSI: {_signal_icon(_val('stoch_rsi'))} {_val('stoch_rsi')} ({_val('stoch_rsi_k')})\n"
+        f"  BB: ↑{_val('bb_upper')} / ↓{_val('bb_lower')}\n"
+        f"{bb_alert_line}"
+        # Volume — Altfins (24h snapshot) + Binance multi-timeframe
+        f"\n📦 <b>Volume (Altfins 24h):</b> {_val('volume')}  (<b>${_val('volume_usd')}</b>)\n"
+        f"  Unusual Spike: {_val('unusual_volume')}  "
+        f"| VWMA: {_val('vwma')}\n"
+        f"\n📊 <b>Volume (Binance):</b>\n"
+        f"  4h: <b>{_val('binance_vol_4h')}</b>  "
+        f"| 1d: <b>{_val('binance_vol_1d')}</b>  "
+        f"| 3d: <b>{_val('binance_vol_3d')}</b>  "
+        f"| 7d: <b>{_val('binance_vol_7d')}</b>\n"
+        # Price % changes
+        f"\n⏳ <b>Price Change:</b> {change_line}\n"
+        # 52W / ATH context
+        f"{context_line}\n\n"
+        # Analysis
+        f"📝 <b>Analysis:</b>\n"
+        f"<i>{_val('raw_text')}</i>"
+    )
+
+
 
 
 def trend_icon(trend_text: str) -> str:
