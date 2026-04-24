@@ -25,6 +25,8 @@ from src.logger import get_logger
 log = get_logger(__name__)
 
 _REQUEST_TIMEOUT = 10  # seconds
+_BINANCE_GLOBAL_BASE = "https://api.binance.com/api/v3/klines"
+_BINANCE_US_BASE     = "https://api.binance.us/api/v3/klines"
 
 
 class BinanceVolume(BaseModel):
@@ -50,28 +52,29 @@ def _format_volume(value: float) -> str:
 #                quote_vol, trades, taker_buy_base, taker_buy_quote, ignore]
 # ---------------------------------------------------------------------------
 
-def _binance_fetch(symbol_usdt: str, interval: str, limit: int) -> Optional[list]:
+def _binance_fetch(symbol_usdt: str, interval: str, limit: int,
+                   base_url: str = _BINANCE_GLOBAL_BASE) -> Optional[list]:
     """
-    Fetch klines from Binance public API.
+    Fetch klines from a Binance-compatible API endpoint.
     Returns list of klines, None if symbol not found (400),
-    or raises GeoBlockedError if region-blocked (451).
+    or raises _GeoBlockedError if region-blocked (451).
     """
     try:
         resp = requests.get(
-            "https://api.binance.com/api/v3/klines",
+            base_url,
             params={"symbol": symbol_usdt, "interval": interval, "limit": limit},
             timeout=_REQUEST_TIMEOUT,
         )
         if resp.status_code == 400:
-            return None          # Symbol not traded on Binance
+            return None          # Symbol not traded on this exchange
         if resp.status_code == 451:
-            raise _GeoBlockedError("Binance geo-blocked (451)")
+            raise _GeoBlockedError(f"Geo-blocked (451) from {base_url}")
         resp.raise_for_status()
         return resp.json()
     except _GeoBlockedError:
         raise
     except requests.RequestException as e:
-        log.debug("Binance request failed for %s [%s]: %s", symbol_usdt, interval, e)
+        log.debug("Request failed %s [%s]: %s", symbol_usdt, interval, e)
         return None
 
 
@@ -79,29 +82,15 @@ class _GeoBlockedError(Exception):
     pass
 
 
-def _binance_volume(symbol: str) -> Optional[BinanceVolume]:
-    """Try to fetch volume from Binance. Returns None on geo-block."""
-    symbol_usdt = f"{symbol.upper()}USDT"
-    try:
-        klines_4h = _binance_fetch(symbol_usdt, "4h", 2)
-        klines_1d = _binance_fetch(symbol_usdt, "1d", 8)
-    except _GeoBlockedError:
-        log.debug("Binance geo-blocked — switching to Bybit fallback")
-        return None
-
-    if not klines_4h and not klines_1d:
-        return BinanceVolume()  # Symbol not on Binance, don't fallback
-
+def _parse_binance_klines(klines_4h: Optional[list],
+                           klines_1d: Optional[list]) -> BinanceVolume:
+    """Parse Binance-format klines into BinanceVolume. Shared by global + US."""
     result = BinanceVolume()
-
-    # 4h volume (last CLOSED candle = index -2)
     if klines_4h and len(klines_4h) >= 2:
         try:
             result.vol_4h = _format_volume(float(klines_4h[-2][7]))
         except (IndexError, ValueError):
             pass
-
-    # 1d / 3d / 7d from daily klines (exclude last = currently forming)
     if klines_1d and len(klines_1d) >= 2:
         try:
             closed = klines_1d[:-1]
@@ -113,8 +102,35 @@ def _binance_volume(symbol: str) -> Optional[BinanceVolume]:
                 result.vol_7d = _format_volume(sum(float(k[7]) for k in closed[-7:]))
         except (IndexError, ValueError):
             pass
-
     return result
+
+
+def _binance_volume(symbol: str) -> Optional[BinanceVolume]:
+    """Try Binance global. Returns None on geo-block, BinanceVolume otherwise."""
+    symbol_usdt = f"{symbol.upper()}USDT"
+    try:
+        klines_4h = _binance_fetch(symbol_usdt, "4h", 2)
+        klines_1d = _binance_fetch(symbol_usdt, "1d", 8)
+    except _GeoBlockedError:
+        log.debug("Binance global geo-blocked — trying Binance US")
+        return None
+    if not klines_4h and not klines_1d:
+        return BinanceVolume()  # Symbol not on Binance, skip further providers
+    return _parse_binance_klines(klines_4h, klines_1d)
+
+
+def _binance_us_volume(symbol: str) -> Optional[BinanceVolume]:
+    """Try Binance US (api.binance.us). Same format as global, fewer pairs."""
+    symbol_usdt = f"{symbol.upper()}USDT"
+    try:
+        klines_4h = _binance_fetch(symbol_usdt, "4h", 2, base_url=_BINANCE_US_BASE)
+        klines_1d = _binance_fetch(symbol_usdt, "1d", 8, base_url=_BINANCE_US_BASE)
+    except _GeoBlockedError:
+        log.debug("Binance US also geo-blocked — trying Bybit")
+        return None
+    if not klines_4h and not klines_1d:
+        return None  # Not on Binance US, try Bybit
+    return _parse_binance_klines(klines_4h, klines_1d)
 
 
 # ---------------------------------------------------------------------------
@@ -199,30 +215,34 @@ def _bybit_volume(symbol: str) -> Optional[BinanceVolume]:
 
 def fetch_volume(symbol: str) -> BinanceVolume:
     """
-    Fetch multi-timeframe volume for a coin using provider chain:
-      Binance (primary) → Bybit (fallback on geo-block)
+    Fetch multi-timeframe volume using a 3-provider chain:
+      Binance global → Binance US → Bybit
 
     Args:
-        symbol: Coin symbol (e.g. "PYTH", "BTC"). USDT pair is built automatically.
+        symbol: Coin symbol (e.g. "PYTH", "BTC"). USDT pair built automatically.
 
     Returns:
         BinanceVolume with formatted strings, or all "N/A" if unavailable.
     """
-    # --- Try Binance first ---
+    # 1. Try Binance global (best coverage; blocked in US/EU)
     result = _binance_volume(symbol)
 
-    # result is None only when Binance is geo-blocked (451)
-    # result is BinanceVolume() (all N/A) when symbol not on Binance
+    # 2. On geo-block (None), try Binance US
     if result is None:
-        log.debug("Falling back to Bybit for %s", symbol)
+        log.debug("Trying Binance US for %s", symbol)
+        result = _binance_us_volume(symbol)
+
+    # 3. Still None → try Bybit (globally accessible)
+    if result is None:
+        log.debug("Trying Bybit for %s", symbol)
         result = _bybit_volume(symbol) or BinanceVolume()
 
-    if result.vol_1d == "N/A" and result.vol_4h == "N/A":
-        log.debug("No volume data available for %s from any provider", symbol)
-    else:
+    if result.vol_1d != "N/A" or result.vol_4h != "N/A":
         log.info(
             "📊 Volume for %s — 4h: %s | 1d: %s | 3d: %s | 7d: %s",
             symbol, result.vol_4h, result.vol_1d, result.vol_3d, result.vol_7d,
         )
+    else:
+        log.debug("No volume data for %s from any provider", symbol)
 
     return result
