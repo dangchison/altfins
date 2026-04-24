@@ -65,6 +65,23 @@ class SupabaseRepository(BaseRepository):
             return response.data[0]["id"]
         return None
 
+    def symbol_exists_as_chart_pattern(self, symbol: str, date: str) -> bool:
+        """Check if symbol already has a CHART_PATTERN entry for the given date.
+
+        Used for early-exit dedup in Market Highlights — if True, skip the
+        highlight entirely (no DB insert, no Telegram alert).
+        """
+        response = (
+            self._client.table(_TABLE)
+            .select("id")
+            .eq("symbol", symbol)
+            .eq("date", date)
+            .eq("source_type", "CHART_PATTERN")
+            .limit(1)
+            .execute()
+        )
+        return bool(response.data)
+
     @with_retry(max_attempts=3, base_delay=1.0)
     def create(self, setup: TradeSetup) -> Optional[str]:
         now = datetime.now(timezone.utc).isoformat()

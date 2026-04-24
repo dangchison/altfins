@@ -238,10 +238,7 @@ def fetch_volume(symbol: str) -> BinanceVolume:
         result = _bybit_volume(symbol) or BinanceVolume()
 
     if result.vol_1d != "N/A" or result.vol_4h != "N/A":
-        log.info(
-            "📊 Volume for %s — 4h: %s | 1d: %s | 3d: %s | 7d: %s",
-            symbol, result.vol_4h, result.vol_1d, result.vol_3d, result.vol_7d,
-        )
+        log.info("📊 Volume fetched for %s", symbol)
     else:
         log.debug("No volume data for %s from any provider", symbol)
 

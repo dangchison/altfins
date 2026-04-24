@@ -199,18 +199,27 @@ class ScrapePipeline:
     def _scrape_market_highlights(self, page, settings) -> None:
         log.info("--- Scrape Market Highlights ---")
         page.goto("https://altfins.com/crypto-markets/crypto-market-highlights")
-        
+
+        today = datetime.now(timezone.utc).strftime("%b %d, %Y")
         extractions = extract_patterns(page, source_type="MARKET_HIGHLIGHT")
         for ext in extractions:
+            # Early-exit: skip if symbol already captured as CHART_PATTERN today
+            if self._repo.symbol_exists_as_chart_pattern(ext.symbol, today):
+                log.info(
+                    "⏭ Highlight skip: %s (%s) — already captured as CHART_PATTERN",
+                    ext.coin, ext.symbol,
+                )
+                continue
+
             log.info("Processing Highlight: %s (%s)", ext.coin, ext.symbol)
             setup = TradeSetup(
-                date=datetime.now(timezone.utc).strftime("%b %d, %Y"),
+                date=today,
                 coin=ext.coin,
                 symbol=ext.symbol,
                 raw_text=ext.raw_text,
                 image_url=ext.image_url,
                 source_type="MARKET_HIGHLIGHT",
-                category=ext.category if ext.category != "N/A" else "Highlights", 
+                category=ext.category if ext.category != "N/A" else "Highlights",
                 pattern_name=ext.pattern_name,
                 status=ext.status,
                 interval=ext.interval,
@@ -221,6 +230,7 @@ class ScrapePipeline:
                 price_change=ext.price_change
             )
             self._persist_and_notify(setup)
+
 
     def _process_row(self, page, row: list[str], row_index: int) -> None:
         # Guard: need at least 4 columns (index, date, symbol, coin)
