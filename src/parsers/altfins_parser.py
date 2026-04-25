@@ -111,9 +111,9 @@ def format_telegram_message(setup: TradeSetup) -> str:
     m = _val("m_trend")
     l = _val("l_trend")
     trend_line = (
-        f"{trend_icon(setup.s_trend)} <b>S:</b> {s}  "
-        f"{trend_icon(setup.m_trend)} <b>M:</b> {m}  "
-        f"{trend_icon(setup.l_trend)} <b>L:</b> {l}"
+        f"  {trend_icon(setup.s_trend)} <b>Short:</b> {s}\n"
+        f"  {trend_icon(setup.m_trend)} <b>Mid:</b>   {m}\n"
+        f"  {trend_icon(setup.l_trend)} <b>Long:</b>  {l}"
     )
 
     # BB cross alert (only show if Yes)
@@ -124,13 +124,12 @@ def format_telegram_message(setup: TradeSetup) -> str:
         bb_alerts.append("⚡ Price crossed Lower BB")
     bb_alert_line = "\n".join(bb_alerts) + "\n" if bb_alerts else ""
 
-    # % change summary (compact)
+    # % change summary (one per line)
     change_parts = []
     for label, field in [("1D", "change_1d"), ("1W", "change_1w"), ("1M", "change_1m"), ("3M", "change_3m")]:
         v = _pct(field)
-        if v != "—":
-            change_parts.append(f"{label}: {v}")
-    change_line = " | ".join(change_parts) if change_parts else "—"
+        change_parts.append(f"  {label}: {v}")
+    change_line = "\n".join(change_parts)
 
     # 52W context
     w52_pct = _val("pct_from_52w_high")
@@ -138,8 +137,8 @@ def format_telegram_message(setup: TradeSetup) -> str:
     context_line = ""
     if w52_pct != "—" or ath_pct != "—":
         context_line = (
-            f"\n📅 <b>52W High:</b> {_val('week52_high')} ({w52_pct} from high)  "
-            f"| <b>ATH:</b> {ath_pct} down"
+            f"\n📅 <b>52W High:</b> {_val('week52_high')} ({w52_pct} from high)\n"
+            f"🏆 <b>ATH:</b> {ath_pct} down"
         )
 
     return (
@@ -165,15 +164,15 @@ def format_telegram_message(setup: TradeSetup) -> str:
         f"{bb_alert_line}"
         # Volume — Altfins (24h snapshot) + Binance multi-timeframe
         f"\n📦 <b>Volume (Altfins 24h):</b> {_val('volume')}  (<b>${_val('volume_usd')}</b>)\n"
-        f"  Unusual Spike: {_val('unusual_volume')}  "
-        f"| VWMA: {_val('vwma')}\n"
+        f"  Unusual Spike: {_val('unusual_volume')}\n"
+        f"  VWMA: {_val('vwma')}\n"
         f"\n📊 <b>Volume (Binance):</b>\n"
-        f"  4h: <b>{_val('binance_vol_4h')}</b>  "
-        f"| 1d: <b>{_val('binance_vol_1d')}</b>  "
-        f"| 3d: <b>{_val('binance_vol_3d')}</b>  "
-        f"| 7d: <b>{_val('binance_vol_7d')}</b>\n"
+        f"  4h: <b>{_val('binance_vol_4h')}</b>\n"
+        f"  1d: <b>{_val('binance_vol_1d')}</b>\n"
+        f"  3d: <b>{_val('binance_vol_3d')}</b>\n"
+        f"  7d: <b>{_val('binance_vol_7d')}</b>\n"
         # Price % changes
-        f"\n⏳ <b>Price Change:</b> {change_line}\n"
+        f"\n⏳ <b>Price Change:</b>\n{change_line}\n"
         # 52W / ATH context
         f"{context_line}\n\n"
         # Analysis
@@ -185,17 +184,17 @@ def format_telegram_message(setup: TradeSetup) -> str:
 
 
 def trend_icon(trend_text: str) -> str:
-    """Map Altfins trend values to a colored directional icon."""
+    """Map Altfins trend values to a colored directional icon with text label."""
     t = trend_text.lower().strip()
     if "strong up" in t:
-        return "🟢⬆️"
+        return "🟢⬆ Strong Up"
     if "up" in t:
-        return "🟢↗️"
+        return "🟢↑ Up"
     if "strong down" in t:
-        return "🔴⬇️"
+        return "🔴⬇ Strong Down"
     if "down" in t:
-        return "🔴↘️"
-    return "⚪➡️"  # Neutral / Sideways
+        return "🔴↓ Down"
+    return "⚪→ Neutral"  # Neutral / Sideways
 
 
 def momentum_icon(momentum_text: str) -> str:
