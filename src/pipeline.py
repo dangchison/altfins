@@ -265,6 +265,53 @@ class ScrapePipeline:
         )
         setup.source_type = "TECHNICAL_ANALYSIS"
         
+        # Enrich with drawer indicator data (drawer was opened by click_inspect_button)
+        from src.scraper.drawer_extractor import extract_open_drawer_indicators
+        drawer = extract_open_drawer_indicators(page, symbol)
+        if drawer:
+            setup.volume = drawer.volume
+            setup.volume_usd = drawer.volume_usd
+            setup.vwma = drawer.vwma
+            setup.price_high = drawer.price_high
+            setup.price_low = drawer.price_low
+            setup.change_1d = drawer.change_1d
+            setup.change_1w = drawer.change_1w
+            setup.change_1m = drawer.change_1m
+            setup.change_3m = drawer.change_3m
+            setup.change_6m = drawer.change_6m
+            setup.change_1y = drawer.change_1y
+            setup.change_ytd = drawer.change_ytd
+            setup.unusual_volume = drawer.unusual_volume
+            setup.rsi_14 = drawer.rsi_14
+            setup.rsi_divergence = drawer.rsi_divergence
+            setup.stoch_rsi = drawer.stoch_rsi
+            setup.stoch_rsi_k = drawer.stoch_rsi_k
+            setup.cci_20 = drawer.cci_20
+            setup.williams = drawer.williams
+            setup.macd_signal = drawer.macd_signal
+            setup.adx_signal = drawer.adx_signal
+            setup.bb_upper = drawer.bb_upper
+            setup.bb_lower = drawer.bb_lower
+            setup.bb_cross_upper = drawer.bb_cross_upper
+            setup.bb_cross_lower = drawer.bb_cross_lower
+            setup.ath_price = drawer.ath_price
+            setup.ath_date = drawer.ath_date
+            setup.pct_from_ath = drawer.pct_from_ath
+            setup.days_from_ath = drawer.days_from_ath
+            setup.week52_high = drawer.week52_high
+            setup.week52_low = drawer.week52_low
+            setup.pct_from_52w_high = drawer.pct_from_52w_high
+            setup.pct_above_52w_low = drawer.pct_above_52w_low
+            setup.sma_20_trend = drawer.sma_20_trend
+            setup.sma_50_trend = drawer.sma_50_trend
+            setup.sma_200_trend = drawer.sma_200_trend
+            setup.ema_9_trend = drawer.ema_9_trend
+            setup.ema_26_trend = drawer.ema_26_trend
+            setup.ma_summary = drawer.ma_summary
+            setup.s_trend = drawer.s_trend
+            setup.m_trend = drawer.m_trend
+            setup.l_trend = drawer.l_trend
+        
         self._persist_and_notify(setup)
         close_popup(page)
 

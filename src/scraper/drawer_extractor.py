@@ -265,41 +265,14 @@ _DRAWER_SCRIPT = """() => {
 }"""
 
 
-def extract_card_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
+def extract_open_drawer_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
     """
-    Click the card for `symbol` on the Chart Patterns page, open the
-    Indicators tab in the drawer, extract all grid data, then close
-    the drawer by pressing Escape.
-
-    Returns a DrawerExtraction on success, or None if the card is not
-    found / drawer does not open.
+    Extract all grid data from an already open drawer.
+    Clicks the Indicators tab, waits for grids to render, and extracts data.
     """
     log.info("🔍 Extracting drawer indicators for %s...", symbol)
-
     try:
-        # 1. Find and click the card matching `symbol`
-        clicked = page.evaluate(f"""() => {{
-            const comps = Array.from(document.querySelectorAll('altfins-trading-pattern-component'));
-            for (const c of comps) {{
-                const sr = c.shadowRoot;
-                if (!sr) continue;
-                // Skip locked cards
-                if (sr.querySelector('.upgrade-unlock-container')) continue;
-                const wh = c.querySelector('widget-header');
-                const primary = wh?.shadowRoot?.querySelector('#primary');
-                if (primary && primary.innerText.trim() === '{symbol}') {{
-                    c.click();
-                    return true;
-                }}
-            }}
-            return false;
-        }}""")
-
-        if not clicked:
-            log.warning("Card for %s not found or locked — skipping drawer extraction", symbol)
-            return None
-
-        # 2. Wait for the Indicators tab to appear and click it
+        # 1. Wait for the Indicators tab to appear and click it
         page.wait_for_timeout(1500)
         tab_clicked = page.evaluate("""() => {
             const tab = document.querySelector('#mdi_detail_tab_indicators');
@@ -309,10 +282,9 @@ def extract_card_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
 
         if not tab_clicked:
             log.warning("Indicators tab not found for %s — drawer may not have opened", symbol)
-            page.keyboard.press("Escape")
             return None
 
-        # 3. Wait for grids to render (all 5 grids must be present)
+        # 2. Wait for grids to render (all 5 grids must be present)
         try:
             page.evaluate("""() => new Promise(resolve => {
                 let attempts = 0;
@@ -330,7 +302,7 @@ def extract_card_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
 
         page.wait_for_timeout(500)
 
-        # 4. Extract all indicator data
+        # 3. Extract all indicator data
         raw = page.evaluate(_DRAWER_SCRIPT)
 
         log.debug("Raw drawer data for %s: %s", symbol, raw)
@@ -393,6 +365,43 @@ def extract_card_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
         log.error("Failed to extract drawer indicators for %s: %s", symbol, e)
         return None
 
+
+def extract_card_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
+    """
+    Click the card for `symbol` on the Chart Patterns page, open the
+    Indicators tab in the drawer, extract all grid data, then close
+    the drawer by pressing Escape.
+
+    Returns a DrawerExtraction on success, or None if the card is not
+    found / drawer does not open.
+    """
+    try:
+        # 1. Find and click the card matching `symbol`
+        clicked = page.evaluate(f"""() => {{
+            const comps = Array.from(document.querySelectorAll('altfins-trading-pattern-component'));
+            for (const c of comps) {{
+                const sr = c.shadowRoot;
+                if (!sr) continue;
+                // Skip locked cards
+                if (sr.querySelector('.upgrade-unlock-container')) continue;
+                const wh = c.querySelector('widget-header');
+                const primary = wh?.shadowRoot?.querySelector('#primary');
+                if (primary && primary.innerText.trim() === '{symbol}') {{
+                    c.click();
+                    return true;
+                }}
+            }}
+            return false;
+        }}""")
+
+        if not clicked:
+            log.warning("Card for %s not found or locked — skipping drawer extraction", symbol)
+            return None
+
+        return extract_open_drawer_indicators(page, symbol)
+    except Exception as e:
+        log.error("Failed to extract drawer indicators for %s: %s", symbol, e)
+        return None
     finally:
         # Always close the drawer
         try:
