@@ -85,8 +85,18 @@ class TradeSetup(BaseModel):
     ema_26_trend: str = "N/A"
     ma_summary: str = "N/A"    # Full MA grid as JSON string
 
-    # Binance multi-timeframe volume (Binance public API — no auth required)
+    # Binance multi-timeframe volume (public API, no auth required)
     binance_vol_4h: str = "N/A"   # Quote volume (USDT) last 4h candle
     binance_vol_1d: str = "N/A"   # Quote volume (USDT) last 1d candle
     binance_vol_3d: str = "N/A"   # Sum quote volume last 3 daily candles
     binance_vol_7d: str = "N/A"   # Sum quote volume last 7 daily candles
+
+    # Breakout Signal (computed by breakout_signal service)
+    breakout_signal: bool = False       # True when confidence >= threshold
+    breakout_confidence: int = 0        # 0–100 integer %
+    breakout_entry: str = "N/A"         # Entry price (resistance level)
+    breakout_stop: str = "N/A"          # Stop-loss price (BB Lower or -2%)
+    breakout_target: str = "N/A"        # Target price (entry + profit_potential%)
+    breakout_rr: str = "N/A"            # Risk:Reward ratio (e.g. "1:3.2")
+    breakout_reasons: str = "N/A"       # JSON-encoded list of signal reasons
+    breakout_timeframe: str = "N/A"     # Entry guidance (e.g. "vào lệnh 15m sau nến 1D đóng")

@@ -163,6 +163,15 @@ class SupabaseRepository(BaseRepository):
                 "binance_vol_1d": setup.binance_vol_1d,
                 "binance_vol_3d": setup.binance_vol_3d,
                 "binance_vol_7d": setup.binance_vol_7d,
+                # Breakout Signal
+                "breakout_signal": setup.breakout_signal,
+                "breakout_confidence": setup.breakout_confidence,
+                "breakout_entry": setup.breakout_entry,
+                "breakout_stop": setup.breakout_stop,
+                "breakout_target": setup.breakout_target,
+                "breakout_rr": setup.breakout_rr,
+                "breakout_reasons": setup.breakout_reasons,
+                "breakout_timeframe": setup.breakout_timeframe,
                 "created_at": now,
                 "updated_at": now,
             })
@@ -241,6 +250,15 @@ class SupabaseRepository(BaseRepository):
                 "binance_vol_1d": setup.binance_vol_1d,
                 "binance_vol_3d": setup.binance_vol_3d,
                 "binance_vol_7d": setup.binance_vol_7d,
+                # Breakout Signal
+                "breakout_signal": setup.breakout_signal,
+                "breakout_confidence": setup.breakout_confidence,
+                "breakout_entry": setup.breakout_entry,
+                "breakout_stop": setup.breakout_stop,
+                "breakout_target": setup.breakout_target,
+                "breakout_rr": setup.breakout_rr,
+                "breakout_reasons": setup.breakout_reasons,
+                "breakout_timeframe": setup.breakout_timeframe,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
             .eq("id", entry_id)

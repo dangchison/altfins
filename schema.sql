@@ -84,6 +84,16 @@ CREATE TABLE IF NOT EXISTS crypto_analysis (
     binance_vol_3d TEXT,       -- Sum quote volume last 3 daily candles
     binance_vol_7d TEXT,       -- Sum quote volume last 7 daily candles
 
+    -- Breakout Signal (computed by breakout_signal service)
+    breakout_signal BOOLEAN DEFAULT FALSE,
+    breakout_confidence INTEGER DEFAULT 0,  -- 0–100 %
+    breakout_entry TEXT,       -- Entry price (resistance level)
+    breakout_stop TEXT,        -- Stop-loss price
+    breakout_target TEXT,      -- Target price
+    breakout_rr TEXT,          -- Risk:Reward ratio
+    breakout_reasons TEXT,     -- JSON list of signal reasons
+    breakout_timeframe TEXT,   -- Entry timeframe guidance
+
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_crypto_setup UNIQUE (symbol, source_type, category, pattern_name, date)

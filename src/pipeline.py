@@ -8,6 +8,7 @@ The pipeline itself contains no business logic — it only coordinates.
 """
 
 import os
+import json
 from datetime import datetime, timezone
 from src.config import get_settings
 from src.logger import get_logger
@@ -26,8 +27,10 @@ from src.scraper.extractor import (
     extract_rows,
 )
 from src.scraper.patterns_extractor import extract_patterns
-from src.scraper.drawer_extractor import extract_card_indicators
+from src.scraper.drawer_extractor import extract_card_indicators, DrawerExtraction
+from src.scraper.coin_detail_extractor import extract_coin_detail
 from src.services.binance_service import fetch_volume
+from src.services.breakout_signal import compute_breakout
 from src.models.trade_setup import TradeSetup
 
 log = get_logger(__name__)
@@ -144,48 +147,7 @@ class ScrapePipeline:
             # Enrich with drawer indicator data
             drawer = extract_card_indicators(page, ext.symbol)
             if drawer:
-                setup.volume = drawer.volume
-                setup.volume_usd = drawer.volume_usd
-                setup.vwma = drawer.vwma
-                setup.price_high = drawer.price_high
-                setup.price_low = drawer.price_low
-                setup.change_1d = drawer.change_1d
-                setup.change_1w = drawer.change_1w
-                setup.change_1m = drawer.change_1m
-                setup.change_3m = drawer.change_3m
-                setup.change_6m = drawer.change_6m
-                setup.change_1y = drawer.change_1y
-                setup.change_ytd = drawer.change_ytd
-                setup.unusual_volume = drawer.unusual_volume
-                setup.rsi_14 = drawer.rsi_14
-                setup.rsi_divergence = drawer.rsi_divergence
-                setup.stoch_rsi = drawer.stoch_rsi
-                setup.stoch_rsi_k = drawer.stoch_rsi_k
-                setup.cci_20 = drawer.cci_20
-                setup.williams = drawer.williams
-                setup.macd_signal = drawer.macd_signal
-                setup.adx_signal = drawer.adx_signal
-                setup.bb_upper = drawer.bb_upper
-                setup.bb_lower = drawer.bb_lower
-                setup.bb_cross_upper = drawer.bb_cross_upper
-                setup.bb_cross_lower = drawer.bb_cross_lower
-                setup.ath_price = drawer.ath_price
-                setup.ath_date = drawer.ath_date
-                setup.pct_from_ath = drawer.pct_from_ath
-                setup.days_from_ath = drawer.days_from_ath
-                setup.week52_high = drawer.week52_high
-                setup.week52_low = drawer.week52_low
-                setup.pct_from_52w_high = drawer.pct_from_52w_high
-                setup.pct_above_52w_low = drawer.pct_above_52w_low
-                setup.sma_20_trend = drawer.sma_20_trend
-                setup.sma_50_trend = drawer.sma_50_trend
-                setup.sma_200_trend = drawer.sma_200_trend
-                setup.ema_9_trend = drawer.ema_9_trend
-                setup.ema_26_trend = drawer.ema_26_trend
-                setup.ma_summary = drawer.ma_summary
-                setup.s_trend = drawer.s_trend
-                setup.m_trend = drawer.m_trend
-                setup.l_trend = drawer.l_trend
+                self._apply_drawer(setup, drawer)
 
             # Enrich with Binance multi-timeframe volume (public API, no auth)
             binance = fetch_volume(ext.symbol)
@@ -194,11 +156,15 @@ class ScrapePipeline:
             setup.binance_vol_3d = binance.vol_3d
             setup.binance_vol_7d = binance.vol_7d
 
+            # Compute breakout signal
+            self._apply_breakout(setup)
+
             self._persist_and_notify(setup)
 
     def _scrape_market_highlights(self, page, settings) -> None:
         log.info("--- Scrape Market Highlights ---")
-        page.goto("https://altfins.com/crypto-markets/crypto-market-highlights")
+        highlights_url = "https://altfins.com/crypto-markets/crypto-market-highlights"
+        page.goto(highlights_url)
 
         today = datetime.now(timezone.utc).strftime("%b %d, %Y")
         extractions = extract_patterns(page, source_type="MARKET_HIGHLIGHT")
@@ -229,6 +195,18 @@ class ScrapePipeline:
                 price=ext.price,
                 price_change=ext.price_change
             )
+
+            # Enrich with coin detail page indicators
+            detail = extract_coin_detail(
+                page, ext.symbol, ext.coin,
+                return_url=highlights_url,
+            )
+            if detail:
+                self._apply_drawer(setup, detail)
+
+            # Compute breakout signal
+            self._apply_breakout(setup)
+
             self._persist_and_notify(setup)
 
 
@@ -264,54 +242,16 @@ class ScrapePipeline:
             image_url=extraction.image_url,
         )
         setup.source_type = "TECHNICAL_ANALYSIS"
-        
+
         # Enrich with drawer indicator data (drawer was opened by click_inspect_button)
         from src.scraper.drawer_extractor import extract_open_drawer_indicators
         drawer = extract_open_drawer_indicators(page, symbol)
         if drawer:
-            setup.volume = drawer.volume
-            setup.volume_usd = drawer.volume_usd
-            setup.vwma = drawer.vwma
-            setup.price_high = drawer.price_high
-            setup.price_low = drawer.price_low
-            setup.change_1d = drawer.change_1d
-            setup.change_1w = drawer.change_1w
-            setup.change_1m = drawer.change_1m
-            setup.change_3m = drawer.change_3m
-            setup.change_6m = drawer.change_6m
-            setup.change_1y = drawer.change_1y
-            setup.change_ytd = drawer.change_ytd
-            setup.unusual_volume = drawer.unusual_volume
-            setup.rsi_14 = drawer.rsi_14
-            setup.rsi_divergence = drawer.rsi_divergence
-            setup.stoch_rsi = drawer.stoch_rsi
-            setup.stoch_rsi_k = drawer.stoch_rsi_k
-            setup.cci_20 = drawer.cci_20
-            setup.williams = drawer.williams
-            setup.macd_signal = drawer.macd_signal
-            setup.adx_signal = drawer.adx_signal
-            setup.bb_upper = drawer.bb_upper
-            setup.bb_lower = drawer.bb_lower
-            setup.bb_cross_upper = drawer.bb_cross_upper
-            setup.bb_cross_lower = drawer.bb_cross_lower
-            setup.ath_price = drawer.ath_price
-            setup.ath_date = drawer.ath_date
-            setup.pct_from_ath = drawer.pct_from_ath
-            setup.days_from_ath = drawer.days_from_ath
-            setup.week52_high = drawer.week52_high
-            setup.week52_low = drawer.week52_low
-            setup.pct_from_52w_high = drawer.pct_from_52w_high
-            setup.pct_above_52w_low = drawer.pct_above_52w_low
-            setup.sma_20_trend = drawer.sma_20_trend
-            setup.sma_50_trend = drawer.sma_50_trend
-            setup.sma_200_trend = drawer.sma_200_trend
-            setup.ema_9_trend = drawer.ema_9_trend
-            setup.ema_26_trend = drawer.ema_26_trend
-            setup.ma_summary = drawer.ma_summary
-            setup.s_trend = drawer.s_trend
-            setup.m_trend = drawer.m_trend
-            setup.l_trend = drawer.l_trend
-        
+            self._apply_drawer(setup, drawer)
+
+        # Compute breakout signal
+        self._apply_breakout(setup)
+
         self._persist_and_notify(setup)
         close_popup(page)
 
@@ -350,3 +290,77 @@ class ScrapePipeline:
                 notifier.send(setup)
             except Exception as exc:
                 log.error("Notifier %s failed: %s", type(notifier).__name__, exc)
+
+    # ------------------------------------------------------------------
+    # Helper: apply DrawerExtraction fields to TradeSetup (single source of truth)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _apply_drawer(setup: TradeSetup, drawer: "DrawerExtraction") -> None:
+        """Copy all DrawerExtraction fields onto a TradeSetup in one place."""
+        setup.volume          = drawer.volume
+        setup.volume_usd      = drawer.volume_usd
+        setup.vwma            = drawer.vwma
+        setup.price_high      = drawer.price_high
+        setup.price_low       = drawer.price_low
+        setup.change_1d       = drawer.change_1d
+        setup.change_1w       = drawer.change_1w
+        setup.change_1m       = drawer.change_1m
+        setup.change_3m       = drawer.change_3m
+        setup.change_6m       = drawer.change_6m
+        setup.change_1y       = drawer.change_1y
+        setup.change_ytd      = drawer.change_ytd
+        setup.unusual_volume  = drawer.unusual_volume
+        setup.rsi_14          = drawer.rsi_14
+        setup.rsi_divergence  = drawer.rsi_divergence
+        setup.stoch_rsi       = drawer.stoch_rsi
+        setup.stoch_rsi_k     = drawer.stoch_rsi_k
+        setup.cci_20          = drawer.cci_20
+        setup.williams        = drawer.williams
+        setup.macd_signal     = drawer.macd_signal
+        setup.adx_signal      = drawer.adx_signal
+        setup.bb_upper        = drawer.bb_upper
+        setup.bb_lower        = drawer.bb_lower
+        setup.bb_cross_upper  = drawer.bb_cross_upper
+        setup.bb_cross_lower  = drawer.bb_cross_lower
+        setup.ath_price       = drawer.ath_price
+        setup.ath_date        = drawer.ath_date
+        setup.pct_from_ath    = drawer.pct_from_ath
+        setup.days_from_ath   = drawer.days_from_ath
+        setup.week52_high     = drawer.week52_high
+        setup.week52_low      = drawer.week52_low
+        setup.pct_from_52w_high  = drawer.pct_from_52w_high
+        setup.pct_above_52w_low  = drawer.pct_above_52w_low
+        setup.sma_20_trend    = drawer.sma_20_trend
+        setup.sma_50_trend    = drawer.sma_50_trend
+        setup.sma_200_trend   = drawer.sma_200_trend
+        setup.ema_9_trend     = drawer.ema_9_trend
+        setup.ema_26_trend    = drawer.ema_26_trend
+        setup.ma_summary      = drawer.ma_summary
+        setup.s_trend         = drawer.s_trend
+        setup.m_trend         = drawer.m_trend
+        setup.l_trend         = drawer.l_trend
+
+    # ------------------------------------------------------------------
+    # Helper: compute and persist breakout signal
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _apply_breakout(setup: TradeSetup) -> None:
+        """Run the breakout engine and write results back to the setup."""
+        signal = compute_breakout(setup)
+        setup.breakout_signal     = signal.is_breakout
+        setup.breakout_confidence = signal.confidence
+        setup.breakout_entry      = signal.entry_price
+        setup.breakout_stop       = signal.stop_loss
+        setup.breakout_target     = signal.target_price
+        setup.breakout_rr         = signal.risk_reward
+        setup.breakout_timeframe  = signal.expected_timeframe
+        setup.breakout_reasons    = json.dumps(signal.signal_reasons, ensure_ascii=False)
+        if signal.is_breakout:
+            log.info(
+                "🎯 Breakout signal for %s: %d%% confidence (%d/%d) | Entry=%s Stop=%s Target=%s R:R=%s",
+                setup.symbol, signal.confidence, signal.score, signal.max_score,
+                signal.entry_price, signal.stop_loss, signal.target_price, signal.risk_reward,
+            )
+

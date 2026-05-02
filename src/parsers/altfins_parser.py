@@ -44,53 +44,20 @@ def parse(raw_text: str, coin: str, symbol: str, date: str, image_url: str = "")
 def format_telegram_message(setup: TradeSetup) -> str:
     """
     Format a TradeSetup into an HTML Telegram message based on its source.
+    All source types include the breakout signal block when triggered.
     """
     e = {k: html.escape(str(v)) for k, v in setup.model_dump().items()}
 
-    # Common Link
+    # Common helpers
     binance_link = f"<a href=\"https://www.binance.com/trade/{e['symbol']}_USDT\">#{e['symbol']}</a>"
 
-    if setup.source_type == "TECHNICAL_ANALYSIS":
-        return (
-            f"🚀 <b>{binance_link}</b> Technical Analysis | <i>{e['date']}</i>\n\n"
-            f"📝 <b>Setup:</b> {e['setup']}\n"
-            f"📊 <b>Pattern:</b> {e['pattern']}\n"
-            f"📈 <b>Trend:</b> "
-            f"S {trend_icon(setup.s_trend)} | "
-            f"M {trend_icon(setup.m_trend)} | "
-            f"L {trend_icon(setup.l_trend)}\n"
-            f"⏱ <b>Momentum:</b> {momentum_icon(setup.momentum)} {e['momentum']}\n"
-            f"⚡ <b>RSI:</b> {e['rsi']}\n"
-            f"🛡 <b>Support:</b> {e['support']}\n"
-            f"⚔️ <b>Resistance:</b> {e['resistance']}"
-        )
-
-    if setup.source_type == "MARKET_HIGHLIGHT":
-        return (
-            f"⭐ <b>MARKET HIGHLIGHT ({e['category']}): {binance_link}</b>\n"
-            f"💰 <b>Price:</b> {e['price']} (<i>{e['price_change']}</i>)\n\n"
-            f"🟢 <b>Status:</b> {e['status']}\n"
-            f"📉 <b>Pattern:</b> {e['pattern_name']}\n"
-            f"⏱ <b>Interval:</b> {e['interval']}\n"
-            f"📊 <b>Signal:</b> {e['signal']}\n"
-            f"📈 <b>Trend:</b> {e['s_trend']}\n"
-            f"🎯 <b>Profit Potential:</b> <b>{e['profit_potential']}</b>\n\n"
-            f"📝 <b>Analysis:</b>\n"
-            f"<i>{e['raw_text']}</i>"
-        )
-
-    # -----------------------------------------------------------------------
-    # CHART_PATTERN — full indicator enriched message
-    # -----------------------------------------------------------------------
     def _val(field: str) -> str:
-        """Return field value or '—' if N/A."""
         v = e.get(field, "N/A")
         return "—" if v == "N/A" else v
 
     def _pct(field: str) -> str:
-        """Format % change: prepend + if positive, skip if N/A."""
         v = e.get(field, "N/A")
-        if v == "N/A" or v == "—":
+        if v in ("N/A", "—"):
             return "—"
         return v if v.startswith("-") or v.startswith("+") else f"+{v}"
 
@@ -106,17 +73,113 @@ def format_telegram_message(setup: TradeSetup) -> str:
             return "✅"
         return "⚪"
 
-    # Trend score line
-    s = _val("s_trend")
-    m = _val("m_trend")
-    l = _val("l_trend")
-    trend_line = (
-        f"  {trend_icon(setup.s_trend)} <b>Short:</b> {s}\n"
-        f"  {trend_icon(setup.m_trend)} <b>Mid:</b>   {m}\n"
-        f"  {trend_icon(setup.l_trend)} <b>Long:</b>  {l}"
+    # Shared indicator block (used by TA and CHART_PATTERN)
+    def _indicator_block() -> str:
+        bb_alerts = []
+        if _val("bb_cross_upper") == "Yes":
+            bb_alerts.append("⚡ Price crossed Upper BB")
+        if _val("bb_cross_lower") == "Yes":
+            bb_alerts.append("⚡ Price crossed Lower BB")
+        bb_alert_line = "\n".join(bb_alerts) + "\n" if bb_alerts else ""
+
+        return (
+            f"🔬 <b>Indicators:</b>\n"
+            f"  RSI14: {_signal_icon(_val('rsi_14'))} {_val('rsi_14')}  "
+            f"| Divergence: {_val('rsi_divergence')}\n"
+            f"  MACD: {_signal_icon(_val('macd_signal'))} {_val('macd_signal')}  "
+            f"| ADX: {_val('adx_signal')}\n"
+            f"  StochRSI: {_signal_icon(_val('stoch_rsi'))} {_val('stoch_rsi')} ({_val('stoch_rsi_k')})\n"
+            f"  BB: ↑{_val('bb_upper')} / ↓{_val('bb_lower')}\n"
+            f"{bb_alert_line}"
+            f"\n📦 <b>Volume (Altfins 24h):</b> {_val('volume')}  (<b>${_val('volume_usd')}</b>)\n"
+            f"  Unusual Spike: {_val('unusual_volume')}\n"
+            f"  VWMA: {_val('vwma')}\n"
+            f"\n📊 <b>Volume (Binance):</b>\n"
+            f"  4h: <b>{_val('binance_vol_4h')}</b>\n"
+            f"  1d: <b>{_val('binance_vol_1d')}</b>\n"
+        )
+
+    # Shared trend score block
+    def _trend_block() -> str:
+        s = _val("s_trend")
+        m = _val("m_trend")
+        l = _val("l_trend")
+        return (
+            f"📈 <b>Trend Scores:</b>\n"
+            f"  {trend_icon(setup.s_trend)} <b>Short:</b> {s}\n"
+            f"  {trend_icon(setup.m_trend)} <b>Mid:</b>   {m}\n"
+            f"  {trend_icon(setup.l_trend)} <b>Long:</b>  {l}\n"
+        )
+
+    # Price change summary
+    def _change_block() -> str:
+        parts = []
+        for label, field in [("1D", "change_1d"), ("1W", "change_1w"), ("1M", "change_1m"), ("3M", "change_3m")]:
+            parts.append(f"  {label}: {_pct(field)}")
+        return "⏳ <b>Price Change:</b>\n" + "\n".join(parts) + "\n"
+
+    # 52W / ATH context
+    def _context_block() -> str:
+        w52_pct = _val("pct_from_52w_high")
+        ath_pct = _val("pct_from_ath")
+        if w52_pct == "—" and ath_pct == "—":
+            return ""
+        return (
+            f"📅 <b>52W High:</b> {_val('week52_high')} ({w52_pct} from high)\n"
+            f"🏆 <b>ATH:</b> {ath_pct} down\n\n"
+        )
+
+    # Breakout signal block (injected into every source type)
+    breakout_line = format_breakout_block(setup)
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # TECHNICAL_ANALYSIS — now includes full drawer indicators
+    # ─────────────────────────────────────────────────────────────────────────
+    if setup.source_type == "TECHNICAL_ANALYSIS":
+        return (
+            f"🚀 <b>{binance_link}</b> Technical Analysis | <i>{e['date']}</i>\n\n"
+            f"📝 <b>Setup:</b> {_val('setup')}\n"
+            f"📊 <b>Pattern:</b> {_val('pattern')}\n"
+            f"⏱ <b>Momentum:</b> {momentum_icon(setup.momentum)} {_val('momentum')}\n"
+            f"⚡ <b>RSI (text):</b> {_val('rsi')}\n"
+            f"🛡 <b>Support:</b> {_val('support')}\n"
+            f"⚔️ <b>Resistance:</b> {_val('resistance')}\n\n"
+            f"{_trend_block()}\n"
+            f"{_indicator_block()}\n"
+            f"{_change_block()}\n"
+            f"{_context_block()}"
+            f"{breakout_line}"
+        )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # MARKET_HIGHLIGHT — now includes indicators when available + breakout
+    # ─────────────────────────────────────────────────────────────────────────
+    if setup.source_type == "MARKET_HIGHLIGHT":
+        has_indicators = setup.rsi_14 != "N/A" or setup.macd_signal != "N/A"
+        indicator_section = (f"\n{_trend_block()}\n{_indicator_block()}\n{_change_block()}\n{_context_block()}"
+                             if has_indicators else "")
+        return (
+            f"⭐ <b>MARKET HIGHLIGHT ({e['category']}): {binance_link}</b>\n"
+            f"💰 <b>Price:</b> {_val('price')} (<i>{_val('price_change')}</i>)\n\n"
+            f"🟢 <b>Status:</b> {_val('status')}\n"
+            f"📉 <b>Pattern:</b> {_val('pattern_name')}\n"
+            f"⏱ <b>Interval:</b> {_val('interval')}\n"
+            f"📊 <b>Signal:</b> {_val('signal')}\n"
+            f"🎯 <b>Profit Potential:</b> <b>{_val('profit_potential')}</b>\n"
+            f"{indicator_section}"
+            f"{breakout_line}"
+            f"📝 <b>Analysis:</b>\n"
+            f"<i>{_val('raw_text')}</i>"
+        )
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # CHART_PATTERN — full indicator enriched message
+    # ─────────────────────────────────────────────────────────────────────────
+    change_line = "\n".join(
+        f"  {lbl}: {_pct(f)}"
+        for lbl, f in [("1D", "change_1d"), ("1W", "change_1w"), ("1M", "change_1m"), ("3M", "change_3m")]
     )
 
-    # BB cross alert (only show if Yes)
     bb_alerts = []
     if _val("bb_cross_upper") == "Yes":
         bb_alerts.append("⚡ Price crossed Upper BB")
@@ -124,17 +187,9 @@ def format_telegram_message(setup: TradeSetup) -> str:
         bb_alerts.append("⚡ Price crossed Lower BB")
     bb_alert_line = "\n".join(bb_alerts) + "\n" if bb_alerts else ""
 
-    # % change summary (one per line)
-    change_parts = []
-    for label, field in [("1D", "change_1d"), ("1W", "change_1w"), ("1M", "change_1m"), ("3M", "change_3m")]:
-        v = _pct(field)
-        change_parts.append(f"  {label}: {v}")
-    change_line = "\n".join(change_parts)
-
-    # 52W context
+    context_line = ""
     w52_pct = _val("pct_from_52w_high")
     ath_pct = _val("pct_from_ath")
-    context_line = ""
     if w52_pct != "—" or ath_pct != "—":
         context_line = (
             f"\n📅 <b>52W High:</b> {_val('week52_high')} ({w52_pct} from high)\n"
@@ -145,15 +200,12 @@ def format_telegram_message(setup: TradeSetup) -> str:
         f"📐 <b>CHART PATTERN: {binance_link}</b>\n"
         f"💰 <b>Price:</b> {_val('price')} (<i>{_val('price_change')}</i>)  "
         f"H: {_val('price_high')} / L: {_val('price_low')}\n\n"
-        # Pattern core
         f"🟢 <b>Status:</b> {_val('status')}\n"
         f"📉 <b>Pattern:</b> {_val('pattern_name')}\n"
         f"⏱ <b>Interval:</b> {_val('interval')}\n"
         f"📊 <b>Signal:</b> {_val('signal')}\n"
         f"🎯 <b>Profit Potential:</b> <b>{_val('profit_potential')}</b>\n\n"
-        # Trend scores
-        f"📈 <b>Trend Scores:</b>\n{trend_line}\n\n"
-        # Key indicators
+        f"{_trend_block()}\n"
         f"🔬 <b>Indicators:</b>\n"
         f"  RSI14: {_signal_icon(_val('rsi_14'))} {_val('rsi_14')}  "
         f"| Divergence: {_val('rsi_divergence')}\n"
@@ -162,7 +214,6 @@ def format_telegram_message(setup: TradeSetup) -> str:
         f"  StochRSI: {_signal_icon(_val('stoch_rsi'))} {_val('stoch_rsi')} ({_val('stoch_rsi_k')})\n"
         f"  BB: ↑{_val('bb_upper')} / ↓{_val('bb_lower')}\n"
         f"{bb_alert_line}"
-        # Volume — Altfins (24h snapshot) + Binance multi-timeframe
         f"\n📦 <b>Volume (Altfins 24h):</b> {_val('volume')}  (<b>${_val('volume_usd')}</b>)\n"
         f"  Unusual Spike: {_val('unusual_volume')}\n"
         f"  VWMA: {_val('vwma')}\n"
@@ -171,11 +222,9 @@ def format_telegram_message(setup: TradeSetup) -> str:
         f"  1d: <b>{_val('binance_vol_1d')}</b>\n"
         f"  3d: <b>{_val('binance_vol_3d')}</b>\n"
         f"  7d: <b>{_val('binance_vol_7d')}</b>\n"
-        # Price % changes
         f"\n⏳ <b>Price Change:</b>\n{change_line}\n"
-        # 52W / ATH context
         f"{context_line}\n\n"
-        # Analysis
+        f"{breakout_line}"
         f"📝 <b>Analysis:</b>\n"
         f"<i>{_val('raw_text')}</i>"
     )
@@ -213,6 +262,44 @@ def momentum_icon(momentum_text: str) -> str:
     if "bearish" in t:
         return "📉"
     return ""
+
+
+def format_breakout_block(setup: TradeSetup) -> str:
+    """
+    Render the breakout signal section for a Telegram message.
+    Returns an empty string if breakout_signal is False.
+    """
+    if not setup.breakout_signal:
+        return ""
+
+    reasons_raw = setup.breakout_reasons
+    if reasons_raw and reasons_raw != "N/A":
+        try:
+            import json
+            reasons_list = json.loads(reasons_raw)
+            reasons_text = "\n".join(f"  {r}" for r in reasons_list)
+        except Exception:
+            reasons_text = f"  {reasons_raw}"
+    else:
+        reasons_text = ""
+
+    entry  = html.escape(setup.breakout_entry)
+    stop   = html.escape(setup.breakout_stop)
+    target = html.escape(setup.breakout_target)
+    rr     = html.escape(setup.breakout_rr)
+    conf   = setup.breakout_confidence
+    tf     = html.escape(setup.breakout_timeframe)
+
+    return (
+        f"\n🎯 <b>BREAKOUT SIGNAL ({conf}% confidence)</b>\n"
+        f"  📍 <b>Entry:</b>     {entry}\n"
+        f"  🛑 <b>Stop Loss:</b> {stop}\n"
+        f"  🎯 <b>Target:</b>   {target}\n"
+        f"  ⚖️ <b>R:R:</b>      {rr}\n"
+        f"  ⏱ <b>Timeframe:</b> {tf}\n"
+        f"{reasons_text}\n\n"
+    )
+
 
 
 # ---------------------------------------------------------------------------
