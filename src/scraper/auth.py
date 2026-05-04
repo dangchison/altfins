@@ -71,8 +71,15 @@ def perform_full_login(page: Page, email: str, password: str) -> None:
     try:
         page.wait_for_url(
             lambda url: "login" not in url,
-            timeout=15_000,
+            timeout=20_000,
         )
-        log.info("Login successful")
     except Exception as exc:
         raise RuntimeError(f"Login failed — still on login page: {exc}") from exc
+
+    # Wait for authenticated UI element to confirm page is fully ready
+    # (URL change is not enough — SPA still needs to hydrate after redirect)
+    try:
+        page.wait_for_selector(".nis-drawer-menu", timeout=15_000)
+        log.info("Login successful — authenticated UI confirmed")
+    except Exception:
+        log.warning("Login redirect OK but drawer menu not found — proceeding anyway")

@@ -103,12 +103,10 @@ def close_popup(page: Page) -> None:
 
     try:
         page.locator("body").press("Escape")
+        # Wait for popup to actually disappear before proceeding
         page.wait_for_selector(".curated-chart-detail", state="hidden", timeout=3_000)
     except Exception:
-        # If it doesn't close (e.g. it's an expanded grid row that requires another button click),
-        # we just swallow the error. The next extract_popup will use .last to get the latest one.
+        # Popup may not have been open, or uses a different close mechanism
         log.info("Popup/Row did not close, continuing anyway.")
 
-    # Vaadin grid often needs time to settle
-    page.wait_for_timeout(2000)
     log.info("Popup close sequence finished")

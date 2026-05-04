@@ -116,14 +116,14 @@ class ScrapePipeline:
 
     def _scrape_technical_analysis(self, page, settings) -> None:
         log.info("--- Scrape Technical Analysis ---")
-        page.goto("https://altfins.com/technical-analysis")
+        page.goto("https://altfins.com/technical-analysis", wait_until="domcontentloaded")
         raw_rows = extract_rows(page, num_rows=settings.technical_analysis_max_rows)
         for i, row in enumerate(raw_rows):
             self._process_row(page, row, row_index=i)
 
     def _scrape_chart_patterns(self, page, settings) -> None:
         log.info("--- Scrape Chart Patterns ---")
-        page.goto("https://altfins.com/chart-patterns")
+        page.goto("https://altfins.com/chart-patterns", wait_until="domcontentloaded")
         extractions = extract_patterns(page, source_type="CHART_PATTERN")
         for ext in extractions:
             log.info("Processing Pattern: %s (%s)", ext.coin, ext.symbol)
@@ -164,7 +164,7 @@ class ScrapePipeline:
     def _scrape_market_highlights(self, page, settings) -> None:
         log.info("--- Scrape Market Highlights ---")
         highlights_url = "https://altfins.com/crypto-markets/crypto-market-highlights"
-        page.goto(highlights_url)
+        page.goto(highlights_url, wait_until="domcontentloaded")
 
         today = datetime.now(timezone.utc).strftime("%b %d, %Y")
         extractions = extract_patterns(page, source_type="MARKET_HIGHLIGHT")
@@ -203,6 +203,13 @@ class ScrapePipeline:
             )
             if detail:
                 self._apply_drawer(setup, detail)
+
+            # Enrich with Binance multi-timeframe volume (public API, no auth)
+            binance = fetch_volume(ext.symbol)
+            setup.binance_vol_4h = binance.vol_4h
+            setup.binance_vol_1d = binance.vol_1d
+            setup.binance_vol_3d = binance.vol_3d
+            setup.binance_vol_7d = binance.vol_7d
 
             # Compute breakout signal
             self._apply_breakout(setup)
@@ -248,6 +255,13 @@ class ScrapePipeline:
         drawer = extract_open_drawer_indicators(page, symbol)
         if drawer:
             self._apply_drawer(setup, drawer)
+
+        # Enrich with Binance multi-timeframe volume (public API, no auth)
+        binance = fetch_volume(symbol)
+        setup.binance_vol_4h = binance.vol_4h
+        setup.binance_vol_1d = binance.vol_1d
+        setup.binance_vol_3d = binance.vol_3d
+        setup.binance_vol_7d = binance.vol_7d
 
         # Compute breakout signal
         self._apply_breakout(setup)

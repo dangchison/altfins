@@ -39,7 +39,7 @@ def extract_patterns(page, source_type: str = "CHART_PATTERN") -> List[PatternEx
     # Scroll down to load all cards
     try:
         page.evaluate("window.scrollBy(0, 500)")
-        page.wait_for_timeout(2000)
+        # No fixed wait — the polling loop below waits for cards to be ready
         
         # Robust wait: ensure components are attached and have shadow roots with content
         page.evaluate('''() => {

@@ -70,12 +70,15 @@ _COIN_DETAIL_SCRIPT = """
   //              All Time High Price ($), 2.4205, ATH Date, May 29 2025,
   //              % Down from ATH, -80.28%]
   const g0 = cells(grids[0]);
-  r.week52High = after(g0, '52-Week High', '52W High');
-  r.week52Low  = after(g0, '52-Week Low',  '52W Low');
-  r.athPrice   = after(g0, 'All Time High Price ($)', 'ATH Price ($)', 'ATH Price');
-  r.athDate    = after(g0, 'ATH Date');
-  r.pctFromAth = after(g0, '% Down from ATH', '% from ATH', 'Down from ATH');
-  r.volumeUsd  = after(g0, 'Volume ($)', 'Volume (USD)');
+  r.week52High   = after(g0, '52-Week High', '52W High');
+  r.week52Low    = after(g0, '52-Week Low',  '52W Low');
+  r.pctFrom52wHigh  = after(g0, '% Down from 52-Week High', '% from 52W High');
+  r.pctAbove52wLow  = after(g0, '% Above 52-Week Low', '% above 52W Low');
+  r.athPrice     = after(g0, 'All Time High Price ($)', 'ATH Price ($)', 'ATH Price');
+  r.athDate      = after(g0, 'ATH Date');
+  r.pctFromAth   = after(g0, '% Down from ATH', '% from ATH', 'Down from ATH');
+  r.daysFromAth  = after(g0, 'Days since ATH', 'Days from ATH');
+  r.volumeUsd    = after(g0, 'Volume ($)', 'Volume (USD)');
 
   // ── Grid 1: Oscillators [Oscillator, Trend, Value,
   //     RSI 9, Overbought,  RSI 14, Neutral,  RSI 25, Neutral,
@@ -93,6 +96,7 @@ _COIN_DETAIL_SCRIPT = """
 
   r.rsi14         = after(g1, 'RSI 14');
   r.stochK        = after(g1, 'STOCH (%K)', 'Stochastic RSI');
+  r.stochKValue   = after(g1, 'Stochastic RSI (K)', 'STOCH RSI K');
   r.cci20         = after(g1, 'CCI 20', 'CCI(20)');
   r.williams      = after(g1, 'Williams %R', 'Williams');
   r.macd          = after(g1, 'MACD Level (EMA 9 and EMA 26)', 'MACD');
@@ -143,6 +147,7 @@ _COIN_DETAIL_SCRIPT = """
   //     VWMA, 0.439,  High, 0.48,  Low, 0.44]
   const g3 = cells(grids[3] || grids[4]);
   r.volume    = after(g3, 'Volume');
+  r.changeYtd = after(g3, 'YTD');
   r.change1d  = after(g3, '1D');
   r.change1w  = after(g3, '1W', '7D');
   r.change1m  = after(g3, '1M', '30D');
@@ -202,7 +207,8 @@ def extract_coin_detail(
         if return_url:
             try:
                 page.goto(return_url, wait_until="domcontentloaded", timeout=20_000)
-                page.wait_for_timeout(1500)
+                # Wait for at least one pattern card to confirm page is ready
+                page.wait_for_selector("altfins-trading-pattern-component", timeout=10_000)
             except Exception as nav_err:
                 log.warning("Failed to navigate back to %s: %s", return_url, nav_err)
 
@@ -251,7 +257,7 @@ def _wait_for_oscillator_grid(page, symbol: str) -> None:
         })""")
     except Exception as e:
         log.warning("Oscillator grid wait interrupted for %s: %s", symbol, e)
-    page.wait_for_timeout(500)
+    # No fixed timeout needed — polling above already confirmed RSI 14 cell exists
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -326,12 +332,12 @@ def _extract(page, symbol: str) -> Optional[DrawerExtraction]:
             s_trend=raw.get("sTrend", "N/A"),
             m_trend=raw.get("mTrend", "N/A"),
             l_trend=raw.get("lTrend", "N/A"),
-            # Not available on this page
-            stoch_rsi_k="N/A",
-            change_ytd="N/A",
-            pct_from_52w_high="N/A",
-            pct_above_52w_low="N/A",
-            days_from_ath="N/A",
+            # Not previously available — now extracted from page
+            stoch_rsi_k=raw.get("stochKValue", "N/A"),
+            change_ytd=raw.get("changeYtd", "N/A"),
+            pct_from_52w_high=raw.get("pctFrom52wHigh", "N/A"),
+            pct_above_52w_low=raw.get("pctAbove52wLow", "N/A"),
+            days_from_ath=raw.get("daysFromAth", "N/A"),
         )
 
         log.info(

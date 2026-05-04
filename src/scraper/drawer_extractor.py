@@ -272,25 +272,43 @@ def extract_open_drawer_indicators(page, symbol: str) -> Optional[DrawerExtracti
     """
     log.info("🔍 Extracting drawer indicators for %s...", symbol)
     try:
-        # 1. Wait for the Indicators tab to appear and click it
-        page.wait_for_timeout(1500)
-        tab_clicked = page.evaluate("""() => {
-            const tab = document.querySelector('#mdi_detail_tab_indicators');
-            if (tab) { tab.click(); return true; }
-            return false;
-        }""")
+        # 1. Poll until #mdi_detail_tab_indicators appears in DOM (drawer renders async)
+        #    Waits up to 10s (50 × 200ms) before giving up.
+        tab_clicked = page.evaluate("""() => new Promise(resolve => {
+            let attempts = 0;
+            const check = setInterval(() => {
+                const tab = document.querySelector('#mdi_detail_tab_indicators');
+                if (tab) {
+                    clearInterval(check);
+                    tab.click();
+                    resolve(true);
+                } else if (++attempts > 50) {
+                    clearInterval(check);
+                    resolve(false);
+                }
+            }, 200);
+        })""")
 
         if not tab_clicked:
             log.warning("Indicators tab not found for %s — drawer may not have opened", symbol)
             return None
 
-        # 2. Wait for grids to render (all 5 grids must be present)
+        # 2. Wait for Indicators tab grids to render with actual content
+        #    Poll until Grid 0 has at least one non-empty cell (real data loaded)
         try:
             page.evaluate("""() => new Promise(resolve => {
                 let attempts = 0;
                 const check = setInterval(() => {
                     const grids = document.querySelectorAll('vaadin-grid');
-                    if (grids.length >= 5 || attempts > 25) {
+                    if (grids.length >= 5) {
+                        // Confirm first grid has actual cell content
+                        const cells = grids[0].querySelectorAll('vaadin-grid-cell-content');
+                        const hasData = Array.from(cells).some(c => c.innerText?.trim().length > 0);
+                        if (hasData || attempts > 40) {
+                            clearInterval(check);
+                            resolve();
+                        }
+                    } else if (attempts > 40) {
                         clearInterval(check);
                         resolve();
                     }
@@ -300,7 +318,6 @@ def extract_open_drawer_indicators(page, symbol: str) -> Optional[DrawerExtracti
         except Exception as e:
             log.warning("Grid wait interrupted for %s: %s", symbol, e)
 
-        page.wait_for_timeout(500)
 
         # 3. Extract all indicator data
         raw = page.evaluate(_DRAWER_SCRIPT)
@@ -403,9 +420,9 @@ def extract_card_indicators(page, symbol: str) -> Optional[DrawerExtraction]:
         log.error("Failed to extract drawer indicators for %s: %s", symbol, e)
         return None
     finally:
-        # Always close the drawer
+        # Always close the drawer and wait for it to actually disappear
         try:
             page.keyboard.press("Escape")
-            page.wait_for_timeout(500)
+            page.wait_for_selector("vaadin-dialog-overlay", state="hidden", timeout=2_000)
         except Exception:
-            pass
+            pass  # Drawer may have already closed or uses different mechanism
