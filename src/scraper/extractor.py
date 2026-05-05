@@ -58,12 +58,29 @@ def click_inspect_button(page: Page, row_index: int) -> None:
         log.error("Inspect button not found for row %d (visible: %d)", row_index + 1, len(visible))
         return
 
-    visible[row_index].scroll_into_view_if_needed()
-    visible[row_index].click()
-
-    # Wait for popup — no sleep needed
-    page.wait_for_selector(".curated-chart-detail", state="visible", timeout=15_000)
-    log.info("Clicked inspect button for row %d", row_index + 1)
+    # The SPA might render the DOM before attaching the click event listener.
+    # If the click is silently ignored, the popup won't appear. We retry up to 3 times.
+    for attempt in range(3):
+        visible[row_index].scroll_into_view_if_needed()
+        # force=True bypasses some Playwright checks (like overlay obscuring) that might cause silent fails in headless
+        visible[row_index].click(force=True)
+        
+        try:
+            page.wait_for_selector(".curated-chart-detail", state="visible", timeout=5000)
+            log.info("Clicked inspect button for row %d and popup appeared", row_index + 1)
+            return
+        except Exception:
+            if attempt < 2:
+                log.warning("Popup didn't appear after click for row %d, retrying...", row_index + 1)
+                page.wait_for_timeout(1000)
+                
+                # Refresh the element handle in case the DOM was updated
+                buttons = page.locator(".altfins-inspect-btn").all()
+                visible = [b for b in buttons if b.is_visible()]
+                visible.sort(key=lambda b: b.bounding_box()["y"])
+            else:
+                log.error("Failed to open popup for row %d after 3 attempts", row_index + 1)
+                raise
 
 
 def extract_popup(page: Page) -> RawExtraction:
