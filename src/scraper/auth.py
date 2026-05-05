@@ -88,5 +88,6 @@ def perform_full_login(page: Page, email: str, password: str) -> None:
     try:
         page.wait_for_selector(".nis-drawer-menu", timeout=15_000)
         log.info("Login successful — authenticated UI confirmed")
-    except Exception:
-        log.warning("Login redirect OK but drawer menu not found — proceeding anyway")
+    except Exception as exc:
+        log.error("Login redirect OK but drawer menu not found. The browser might be stuck on a Captcha or Cloudflare challenge.")
+        raise RuntimeError("Login failed: Authenticated UI (.nis-drawer-menu) not found after login attempt.") from exc
