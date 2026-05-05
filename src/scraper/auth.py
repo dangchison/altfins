@@ -42,9 +42,16 @@ def is_logged_in(page: Page) -> bool:
         if page.locator("input[name='username']").is_visible():
             return False
 
-        # If we see the drawer menu or the URL is not login, and we don't see login input
-        return "login" not in page.url and not page.locator("input[name='username']").is_visible()
-    except Exception:
+        # Strictly require the authenticated drawer menu to consider the session valid.
+        # If the session expired, Altfins might just show a public view without redirecting to /login.
+        is_auth = page.locator(".nis-drawer-menu").count() > 0
+        if is_auth:
+            log.info("Session verified via .nis-drawer-menu presence.")
+        else:
+            log.info("Session expired or invalid (no .nis-drawer-menu found).")
+        return is_auth
+    except Exception as e:
+        log.warning("Error checking login state: %s", e)
         return False
 
 
