@@ -155,6 +155,9 @@ class ScrapePipeline:
             setup.binance_vol_1d = binance.vol_1d
             setup.binance_vol_3d = binance.vol_3d
             setup.binance_vol_7d = binance.vol_7d
+            setup.binance_vol_1m = binance.vol_1m
+            setup.binance_vol_3m = binance.vol_3m
+            setup.binance_vol_1y = binance.vol_1y
 
             # Compute breakout signal
             self._apply_breakout(setup)
@@ -210,6 +213,9 @@ class ScrapePipeline:
             setup.binance_vol_1d = binance.vol_1d
             setup.binance_vol_3d = binance.vol_3d
             setup.binance_vol_7d = binance.vol_7d
+            setup.binance_vol_1m = binance.vol_1m
+            setup.binance_vol_3m = binance.vol_3m
+            setup.binance_vol_1y = binance.vol_1y
 
             # Compute breakout signal
             self._apply_breakout(setup)
@@ -262,6 +268,9 @@ class ScrapePipeline:
         setup.binance_vol_1d = binance.vol_1d
         setup.binance_vol_3d = binance.vol_3d
         setup.binance_vol_7d = binance.vol_7d
+        setup.binance_vol_1m = binance.vol_1m
+        setup.binance_vol_3m = binance.vol_3m
+        setup.binance_vol_1y = binance.vol_1y
 
         # Compute breakout signal
         self._apply_breakout(setup)

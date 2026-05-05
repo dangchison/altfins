@@ -97,6 +97,11 @@ def format_telegram_message(setup: TradeSetup) -> str:
             f"\n📊 <b>Volume (Binance):</b>\n"
             f"  4h: <b>{_val('binance_vol_4h')}</b>\n"
             f"  1d: <b>{_val('binance_vol_1d')}</b>\n"
+            f"  3d: <b>{_val('binance_vol_3d')}</b>\n"
+            f"  7d: <b>{_val('binance_vol_7d')}</b>\n"
+            f"  1m: <b>{_val('binance_vol_1m')}</b>\n"
+            f"  3m: <b>{_val('binance_vol_3m')}</b>\n"
+            f"  1y: <b>{_val('binance_vol_1y')}</b>\n"
         )
 
     # Shared trend score block
@@ -222,6 +227,9 @@ def format_telegram_message(setup: TradeSetup) -> str:
         f"  1d: <b>{_val('binance_vol_1d')}</b>\n"
         f"  3d: <b>{_val('binance_vol_3d')}</b>\n"
         f"  7d: <b>{_val('binance_vol_7d')}</b>\n"
+        f"  1m: <b>{_val('binance_vol_1m')}</b>\n"
+        f"  3m: <b>{_val('binance_vol_3m')}</b>\n"
+        f"  1y: <b>{_val('binance_vol_1y')}</b>\n"
         f"\n⏳ <b>Price Change:</b>\n{change_line}\n"
         f"{context_line}\n\n"
         f"{breakout_line}"

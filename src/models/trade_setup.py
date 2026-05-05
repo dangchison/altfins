@@ -90,6 +90,9 @@ class TradeSetup(BaseModel):
     binance_vol_1d: str = "N/A"   # Quote volume (USDT) last 1d candle
     binance_vol_3d: str = "N/A"   # Sum quote volume last 3 daily candles
     binance_vol_7d: str = "N/A"   # Sum quote volume last 7 daily candles
+    binance_vol_1m: str = "N/A"   # Sum quote volume last 30 daily candles
+    binance_vol_3m: str = "N/A"   # Sum quote volume last 90 daily candles
+    binance_vol_1y: str = "N/A"   # Sum quote volume last 365 daily candles
 
     # Breakout Signal (computed by breakout_signal service)
     breakout_signal: bool = False       # True when confidence >= threshold

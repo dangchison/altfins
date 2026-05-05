@@ -37,6 +37,9 @@ class BinanceVolume(BaseModel):
     vol_1d: str = "N/A"
     vol_3d: str = "N/A"
     vol_7d: str = "N/A"
+    vol_1m: str = "N/A"
+    vol_3m: str = "N/A"
+    vol_1y: str = "N/A"
 
 
 def _format_volume(value: float) -> str:
@@ -102,6 +105,12 @@ def _parse_binance_klines(klines_4h: Optional[list],
                 result.vol_3d = _format_volume(sum(float(k[7]) for k in closed[-3:]))
             if len(closed) >= 7:
                 result.vol_7d = _format_volume(sum(float(k[7]) for k in closed[-7:]))
+            if len(closed) >= 30:
+                result.vol_1m = _format_volume(sum(float(k[7]) for k in closed[-30:]))
+            if len(closed) >= 90:
+                result.vol_3m = _format_volume(sum(float(k[7]) for k in closed[-90:]))
+            if len(closed) >= 365:
+                result.vol_1y = _format_volume(sum(float(k[7]) for k in closed[-365:]))
         except (IndexError, ValueError):
             pass
     return result
@@ -112,7 +121,7 @@ def _binance_volume(symbol: str) -> Optional[BinanceVolume]:
     symbol_usdt = f"{symbol.upper()}USDT"
     try:
         klines_4h = _binance_fetch(symbol_usdt, "4h", 2)
-        klines_1d = _binance_fetch(symbol_usdt, "1d", 8)
+        klines_1d = _binance_fetch(symbol_usdt, "1d", 366)
     except _GeoBlockedError:
         log.debug("Binance global geo-blocked — trying Binance US")
         return None
@@ -126,7 +135,7 @@ def _binance_us_volume(symbol: str) -> Optional[BinanceVolume]:
     symbol_usdt = f"{symbol.upper()}USDT"
     try:
         klines_4h = _binance_fetch(symbol_usdt, "4h", 2, base_url=_BINANCE_US_BASE)
-        klines_1d = _binance_fetch(symbol_usdt, "1d", 8, base_url=_BINANCE_US_BASE)
+        klines_1d = _binance_fetch(symbol_usdt, "1d", 366, base_url=_BINANCE_US_BASE)
     except _GeoBlockedError:
         log.debug("Binance US also geo-blocked — trying Bybit")
         return None
@@ -180,7 +189,7 @@ def _bybit_volume(symbol: str) -> Optional[BinanceVolume]:
     symbol_usdt = f"{symbol.upper()}USDT"
 
     klines_4h = _bybit_fetch(symbol_usdt, "4h", 3)
-    klines_1d = _bybit_fetch(symbol_usdt, "1d", 9)
+    klines_1d = _bybit_fetch(symbol_usdt, "1d", 366)
 
     if not klines_4h and not klines_1d:
         log.debug("No Bybit data for %s", symbol_usdt)
@@ -205,6 +214,12 @@ def _bybit_volume(symbol: str) -> Optional[BinanceVolume]:
                 result.vol_3d = _format_volume(sum(float(k[6]) for k in closed[-3:]))
             if len(closed) >= 7:
                 result.vol_7d = _format_volume(sum(float(k[6]) for k in closed[-7:]))
+            if len(closed) >= 30:
+                result.vol_1m = _format_volume(sum(float(k[6]) for k in closed[-30:]))
+            if len(closed) >= 90:
+                result.vol_3m = _format_volume(sum(float(k[6]) for k in closed[-90:]))
+            if len(closed) >= 365:
+                result.vol_1y = _format_volume(sum(float(k[6]) for k in closed[-365:]))
         except (IndexError, ValueError):
             pass
 
@@ -255,7 +270,8 @@ def _okx_fetch(symbol: str, interval_key: str, limit: int) -> Optional[list]:
 def _okx_volume(symbol: str) -> Optional[BinanceVolume]:
     """Fetch volume from OKX. Returns BinanceVolume or None on failure."""
     candles_4h = _okx_fetch(symbol, "4h", 3)
-    candles_1d = _okx_fetch(symbol, "1d", 9)
+    # OKX public market/candles limit is 300. We ask for 300 to get as close to 365 as possible.
+    candles_1d = _okx_fetch(symbol, "1d", 300)
 
     if not candles_4h and not candles_1d:
         log.debug("No OKX data for %s-USDT", symbol.upper())
@@ -270,7 +286,7 @@ def _okx_volume(symbol: str) -> Optional[BinanceVolume]:
         except (IndexError, ValueError):
             pass
 
-    # 1d / 3d / 7d: exclude last candle if still forming (confirm == "0")
+    # 1d / 3d / 7d / 1m / 3m / 1y: exclude last candle if still forming (confirm == "0")
     if candles_1d and len(candles_1d) >= 2:
         try:
             closed = candles_1d[:-1] if candles_1d[-1][8] == "0" else candles_1d
@@ -280,6 +296,13 @@ def _okx_volume(symbol: str) -> Optional[BinanceVolume]:
                 result.vol_3d = _format_volume(sum(float(k[7]) for k in closed[-3:]))
             if len(closed) >= 7:
                 result.vol_7d = _format_volume(sum(float(k[7]) for k in closed[-7:]))
+            if len(closed) >= 30:
+                result.vol_1m = _format_volume(sum(float(k[7]) for k in closed[-30:]))
+            if len(closed) >= 90:
+                result.vol_3m = _format_volume(sum(float(k[7]) for k in closed[-90:]))
+            # OKX caps at 300, so we might just sum all available if it's over 270 days for a rough 1y
+            if len(closed) >= 270:
+                result.vol_1y = _format_volume(sum(float(k[7]) for k in closed))
         except (IndexError, ValueError):
             pass
 
