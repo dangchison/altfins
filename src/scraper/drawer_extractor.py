@@ -114,8 +114,28 @@ _DRAWER_SCRIPT = """() => {
         return d;
     };
 
-    // Collect all vaadin-grids and their cell text
-    const grids = Array.from(document.querySelectorAll('vaadin-grid'));
+    // ── Scope grid queries to the DRAWER container only ──────────────────────
+    // On the Technical Analysis page, the main data table is also a vaadin-grid.
+    // A global querySelectorAll('vaadin-grid') would return [mainTable, ...drawerGrids],
+    // making all grid indices off by 1 and producing all-N/A output.
+    // Fix: walk up from #mdi_detail_tab_indicators to find the first ancestor
+    // that contains exactly the drawer's 5 grids.
+    const indicatorTab = document.querySelector('#mdi_detail_tab_indicators');
+    let drawerRoot = document;
+    if (indicatorTab) {
+        let el = indicatorTab.parentElement;
+        while (el && el !== document.body) {
+            const g = el.querySelectorAll('vaadin-grid');
+            if (g.length >= 5) {
+                drawerRoot = el;
+                break;
+            }
+            el = el.parentElement;
+        }
+    }
+
+    // Collect all vaadin-grids scoped to the drawer container
+    const grids = Array.from(drawerRoot.querySelectorAll('vaadin-grid'));
     const gridCells = grids.map(g =>
         Array.from(g.querySelectorAll('vaadin-grid-cell-content'))
             .map(c => c.innerText?.trim() ?? '')
@@ -293,15 +313,27 @@ def extract_open_drawer_indicators(page, symbol: str) -> Optional[DrawerExtracti
             log.warning("Indicators tab not found for %s — drawer may not have opened", symbol)
             return None
 
-        # 2. Wait for Indicators tab grids to render with actual content
-        #    Poll until Grid 0 has at least one non-empty cell (real data loaded)
+        # 2. Wait for drawer grids to render with actual content
+        #    Scoped to the drawer container (same walk-up logic as _DRAWER_SCRIPT)
+        #    to avoid counting the main TA page table as a grid.
         try:
             page.evaluate("""() => new Promise(resolve => {
                 let attempts = 0;
                 const check = setInterval(() => {
-                    const grids = document.querySelectorAll('vaadin-grid');
+                    const tab = document.querySelector('#mdi_detail_tab_indicators');
+                    let root = document;
+                    if (tab) {
+                        let el = tab.parentElement;
+                        while (el && el !== document.body) {
+                            if (el.querySelectorAll('vaadin-grid').length >= 5) {
+                                root = el;
+                                break;
+                            }
+                            el = el.parentElement;
+                        }
+                    }
+                    const grids = root.querySelectorAll('vaadin-grid');
                     if (grids.length >= 5) {
-                        // Confirm first grid has actual cell content
                         const cells = grids[0].querySelectorAll('vaadin-grid-cell-content');
                         const hasData = Array.from(cells).some(c => c.innerText?.trim().length > 0);
                         if (hasData || attempts > 40) {
