@@ -268,8 +268,8 @@ class SupabaseRepository(BaseRepository):
 
     def download_file(self, bucket: str, remote_path: str, local_path: str) -> bool:
         try:
+            res = self._client.storage.from_(bucket).download(remote_path)
             with open(local_path, "wb") as f:
-                res = self._client.storage.from_(bucket).download(remote_path)
                 f.write(res)
             return True
         except Exception as e:
