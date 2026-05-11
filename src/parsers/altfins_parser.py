@@ -298,15 +298,18 @@ def format_breakout_block(setup: TradeSetup) -> str:
     conf   = setup.breakout_confidence
     tf     = html.escape(setup.breakout_timeframe)
 
-    return (
-        f"\n🎯 <b>BREAKOUT SIGNAL ({conf}% confidence)</b>\n"
-        f"  📍 <b>Entry:</b>     {entry}\n"
-        f"  🛑 <b>Stop Loss:</b> {stop}\n"
-        f"  🎯 <b>Target:</b>   {target}\n"
-        f"  ⚖️ <b>R:R:</b>      {rr}\n"
-        f"  ⏱ <b>Timeframe:</b> {tf}\n"
-        f"{reasons_text}\n\n"
-    )
+    res = f"\n🎯 <b>BREAKOUT SIGNAL ({conf}% confidence)</b>\n"
+    res += f"  📍 <b>Entry:</b>     {entry}\n"
+    res += f"  🛑 <b>Stop Loss:</b> {stop}\n"
+    if target != "N/A":
+        res += f"  🎯 <b>Target:</b>   {target}\n"
+    if rr != "N/A":
+        res += f"  ⚖️ <b>R:R:</b>      {rr}\n"
+    res += f"  ⏱ <b>Timeframe:</b> {tf}\n"
+    if reasons_text:
+        res += f"{reasons_text}\n"
+    res += "\n"
+    return res
 
 
 
