@@ -23,7 +23,11 @@ def main() -> None:
     notifiers = [
         TelegramNotifier(
             token=settings.telegram_bot_token,
-            chat_ids=settings.chat_id_list,
+            chat_ids_map={
+                "TECHNICAL_ANALYSIS": settings.telegram_chat_id_analysis,
+                "CHART_PATTERN": settings.telegram_chat_id_pattern,
+                "MARKET_HIGHLIGHT": settings.telegram_chat_id_highlight,
+            },
         ),
         # DiscordNotifier(webhook_url="..."),  # uncomment when ready
         # EmailNotifier(...),                  # uncomment when ready

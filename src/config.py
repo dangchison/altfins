@@ -25,9 +25,9 @@ class Settings(BaseSettings):
 
     telegram_bot_token: str
 
-    # Comma-separated chat IDs, e.g. "-100123456,-100789012"
-    # Stored as a plain string in .env, parsed here into a list.
-    telegram_chat_ids: str = ""
+    telegram_chat_id_analysis: str = ""
+    telegram_chat_id_pattern: str = ""
+    telegram_chat_id_highlight: str = ""
 
     # Scraper behaviour
     technical_analysis_max_rows: int = 2
@@ -35,18 +35,6 @@ class Settings(BaseSettings):
     enable_chart_patterns: bool = True
     enable_market_highlights: bool = True
     use_persistent_session: bool = True
-
-    @field_validator("telegram_chat_ids", mode="before")
-    @classmethod
-    def parse_chat_ids(cls, v: str) -> str:
-        # pydantic-settings passes the raw env string; keep as-is for storage,
-        # the property below handles splitting.
-        return v or ""
-
-    @property
-    def chat_id_list(self) -> list[str]:
-        """Return individual chat IDs as a list, ignoring blank entries."""
-        return [cid.strip() for cid in self.telegram_chat_ids.split(",") if cid.strip()]
 
 
 
