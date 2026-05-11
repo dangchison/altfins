@@ -381,9 +381,5 @@ class ScrapePipeline:
         setup.breakout_timeframe  = signal.expected_timeframe
         setup.breakout_reasons    = json.dumps(signal.signal_reasons, ensure_ascii=False)
         if signal.is_breakout:
-            log.info(
-                "🎯 Breakout signal for %s: %d%% confidence (%d/%d) | Entry=%s Stop=%s Target=%s R:R=%s",
-                setup.symbol, signal.confidence, signal.score, signal.max_score,
-                signal.entry_price, signal.stop_loss, signal.target_price, signal.risk_reward,
-            )
+            log.info("🎯 Breakout signal for %s: DONE", setup.symbol)
 
