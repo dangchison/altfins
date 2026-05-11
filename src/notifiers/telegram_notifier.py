@@ -64,9 +64,9 @@ class TelegramNotifier(BaseNotifier):
                 text=format_telegram_message(setup),
                 parse_mode="HTML",
             )
-            log.info("📢 Alert sent successfully")
+            log.info("📢 Alert sent successfully for %s [%s]", setup.symbol, setup.source_type)
         except Exception as exc:
-            log.error("Failed to send text alert: %s", exc)
+            log.error("Failed to send text alert for %s: %s", setup.symbol, exc)
 
     # ------------------------------------------------------------------
     # Private HTTP helpers
