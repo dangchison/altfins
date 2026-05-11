@@ -206,6 +206,9 @@ def extract_coin_detail(
     finally:
         if return_url:
             try:
+                # Brief pause to let the browser release memory from the heavy coin detail page
+                # before navigating back. This prevents "Page crashed" errors.
+                page.wait_for_timeout(1_500)
                 page.goto(return_url, wait_until="domcontentloaded", timeout=20_000)
                 # Wait for at least one pattern card to confirm page is ready
                 page.wait_for_selector("altfins-trading-pattern-component", timeout=10_000)
