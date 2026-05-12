@@ -50,7 +50,9 @@ jobs:
       - name: Run Scraper
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
+          TELEGRAM_CHAT_ID_ANALYSIS: ${{ secrets.TELEGRAM_CHAT_ID_ANALYSIS }}
+          TELEGRAM_CHAT_ID_PATTERN: ${{ secrets.TELEGRAM_CHAT_ID_PATTERN }}
+          TELEGRAM_CHAT_ID_HIGHLIGHT: ${{ secrets.TELEGRAM_CHAT_ID_HIGHLIGHT }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           ALTFINS_ACCOUNT: ${{ secrets.ALTFINS_ACCOUNT }}
